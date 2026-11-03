@@ -1,0 +1,243 @@
+/** Integration tests against a REAL, disposable MySQL 5.7 database.
+ * Never points at the normal application database. Explicit opt-in and a
+ * leinz_test_* database name are both required before any table is modified.
+ */
+import assert from 'node:assert/strict';
+import { request as httpRequest } from 'node:http';
+import { once } from 'node:events';
+import { randomBytes } from 'node:crypto';
+import { spawn } from 'node:child_process';
+import { loadConfig, PROJECT_ROOT } from '../server/config.mjs';
+import { createPool, migrate, seed, MysqlStore, TABLES, decodeJson } from '../server/db.mjs';
+import { createApp } from '../server/app.mjs';
+
+if (process.env.LEINZ_ALLOW_TEST_DB !== '1' || !/^leinz_test_[A-Za-z0-9_]+$/.test(process.env.MYSQL_DATABASE || '')) {
+  console.error('Refusing integration tests: set LEINZ_ALLOW_TEST_DB=1 and MYSQL_DATABASE=leinz_test_<disposable_name>. This test resets the six Leinz tables in that database.');
+  process.exit(2);
+}
+if (process.argv.slice(2).some(arg => arg !== '--verify-persistence')) throw Error('Unknown test argument.');
+const config = loadConfig({ env: { ...process.env, APP_URL: 'http://127.0.0.1:3000', HOST: '127.0.0.1', PORT: '3000' }, envFile: '/nonexistent-leinz-test-env' });
+let pool = createPool(config), server, store, origin;
+const failures = [], passed = [];
+const clone = value => JSON.parse(JSON.stringify(value));
+const logs = [];
+const appPassword = randomBytes(24).toString('base64url');
+const secondPassword = randomBytes(24).toString('base64url');
+
+async function test(name, run) {
+  try { await run(); passed.push(name); console.log(`PASS ${name}`); }
+  catch (error) { failures.push(name); console.error(`FAIL ${name}: ${error.message}`); throw error; }
+}
+async function cli(command, env = {}) {
+  const child = spawn(process.execPath, ['server/cli.mjs', command], {
+    cwd: PROJECT_ROOT, env: { ...process.env, ...env }, stdio: ['ignore', 'pipe', 'pipe']
+  });
+  let stdout = '', stderr = '';
+  child.stdout.on('data', chunk => { stdout += chunk; });
+  child.stderr.on('data', chunk => { stderr += chunk; });
+  const [code] = await once(child, 'close');
+  assert(!stdout.includes(appPassword) && !stderr.includes(appPassword), 'CLI must never print the app password');
+  assert(!stdout.includes(config.mysql.password) && !stderr.includes(config.mysql.password), 'CLI must never print the database password');
+  return { code, stdout, stderr };
+}
+async function startApp() {
+  store = new MysqlStore(pool, config); await store.initialize();
+  server = createApp({ store, config, logger: { error: (...args) => logs.push(args.join(' ')) } });
+  server.listen(0, '127.0.0.1'); await once(server, 'listening');
+  origin = `http://127.0.0.1:${server.address().port}`; config.origin = origin;
+}
+async function stopApp() {
+  if (!server) return;
+  const value = server; server = null;
+  value.closeAllConnections(); await new Promise((resolve, reject) => value.close(error => error ? reject(error) : resolve()));
+}
+async function request(path, { method = 'GET', body, rawBody, cookie, csrf, headers = {} } = {}) {
+  const data = rawBody !== undefined ? rawBody : body !== undefined ? JSON.stringify(body) : undefined;
+  const merged = { ...(['POST', 'PUT', 'PATCH', 'DELETE'].includes(method) ? { Origin: origin } : {}),
+    ...(data !== undefined ? { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(data) } : {}),
+    ...(cookie ? { Cookie: cookie } : {}), ...(csrf ? { 'X-CSRF-Token': csrf } : {}), ...headers };
+  return new Promise((resolve, reject) => {
+    const req = httpRequest(origin, { method, path, headers: merged }, res => {
+      const chunks = []; res.on('data', chunk => chunks.push(chunk));
+      res.on('end', () => { const text = Buffer.concat(chunks).toString('utf8'); let json;
+        try { json = JSON.parse(text); } catch { /* static files are not JSON */ }
+        resolve({ status: res.statusCode, headers: res.headers, text, json });
+      });
+    });
+    req.setTimeout(10000, () => req.destroy(Error('HTTP test timed out')));
+    req.on('error', reject); req.end(data);
+  });
+}
+async function login(username, password) {
+  const res = await request('/api/session', { method: 'POST', body: { username, password } });
+  assert.equal(res.status, 200, res.text); assert.equal(res.json.authenticated, true);
+  assert.match(res.headers['set-cookie'][0], /HttpOnly/); assert.match(res.headers['set-cookie'][0], /SameSite=Strict/);
+  assert(!res.headers['set-cookie'][0].includes('Secure'), 'Loopback HTTP test cookie must be usable');
+  return { cookie: res.headers['set-cookie'][0].split(';')[0], csrf: res.json.csrfToken, user: res.json.user };
+}
+async function getDoc(key, actor) { const res = await request(`/api/documents/${key}`, actor); assert.equal(res.status, 200, res.text); return res.json; }
+async function putDoc(key, value, revision, actor) { return request(`/api/documents/${key}`, { method: 'PUT', body: { value, revision }, ...actor }); }
+
+try {
+  const [[info]] = await pool.query('SELECT VERSION() AS version, @@sql_mode AS sqlMode, @@max_allowed_packet AS maxPacket');
+  assert.match(info.version, /^5\.7\./); assert(!/mariadb/i.test(info.version));
+  console.log(JSON.stringify({ databaseVersion: info.version, sqlMode: info.sqlMode, maxAllowedPacket: Number(info.maxPacket), testDatabase: config.mysql.database }));
+  if (process.argv.includes('--verify-persistence')) {
+    await test('Database restart preserves committed state, history and shared SKU', async () => {
+      await startApp();
+      const [users] = await pool.execute('SELECT id FROM leinz_users WHERE username = ?', ['qaadmin']);
+      assert.equal(users.length, 1);
+      const state = await store.getDocument(Number(users[0].id), 'state');
+      assert.equal(state.value.a.note, 'QA restart marker 👓');
+      const history = await store.getDocument(Number(users[0].id), 'saved');
+      assert.equal(history.value.length, 1); assert.equal(history.value[0].id, 'qa-saved-1');
+      const skus = await store.getDocument(null, 'skus');
+      assert.equal(skus.value.skus.length, 3); assert.equal(skus.value.skus[0].code, "LEINZ'57");
+      assert.equal((await request('/api/health')).json.databaseVersion, info.version);
+    });
+  } else {
+    // The guard above is intentionally before the first destructive statement.
+    for (const name of [...TABLES].reverse()) await pool.query(`DROP TABLE IF EXISTS \`${name}\``);
+    await test('Fresh installation: migration and seeding CLIs are repeatable', async () => {
+      for (const command of ['migrate', 'migrate', 'seed', 'seed']) {
+        const result = await cli(command); assert.equal(result.code, 0, result.stderr);
+      }
+      const [tables] = await pool.query('SHOW TABLES'); assert.equal(tables.length, 6);
+      const [[migration]] = await pool.query('SELECT COUNT(*) AS n FROM leinz_schema_migrations'); assert.equal(Number(migration.n), 1);
+      const [columns] = await pool.query("SELECT DATA_TYPE AS type FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND COLUMN_NAME = 'document_json'");
+      assert.equal(columns.length, 3); assert(columns.every(c => c.type === 'json'));
+    });
+    await test('Account installation and diagnostic CLI; duplicate account is preserved', async () => {
+      const missingUser = await cli('doctor'); assert.equal(missingUser.code, 1);
+      const first = await cli('admin-create', { ADMIN_USERNAME: 'qaadmin', ADMIN_PASSWORD: appPassword }); assert.equal(first.code, 0, first.stderr);
+      const second = await cli('admin-create', { ADMIN_USERNAME: 'qaother', ADMIN_PASSWORD: secondPassword }); assert.equal(second.code, 0, second.stderr);
+      const duplicate = await cli('admin-create', { ADMIN_USERNAME: 'qaadmin', ADMIN_PASSWORD: 'MustNotReplaceThisPassword' }); assert.equal(duplicate.code, 1);
+      const doctor = await cli('doctor'); assert.equal(doctor.code, 0, doctor.stderr); assert.equal(JSON.parse(doctor.stdout).databaseVersion, info.version);
+      const [users] = await pool.query('SELECT password_hash FROM leinz_users'); assert.equal(users.length, 2); assert(users.every(user => user.password_hash.startsWith('scrypt$1$')));
+    });
+    await startApp();
+    await test('Unauthenticated API and raw catalog reads are rejected', async () => {
+      assert.deepEqual((await request('/api/session')).json, { authenticated: false });
+      for (const path of ['/api/bootstrap', '/api/documents/state', '/api/documents/saved', '/api/documents/skus', '/assets/materials.json', '/assets//materials.json', '/assets/%2Fmaterials.json', '/assets//tints.json']) assert.equal((await request(path)).status, 401, path);
+      const health = await request('/api/health'); assert.equal(health.status, 200); assert.equal(health.json.databaseVersion, info.version);
+    });
+    await test('Login rejects wrong passwords, injected usernames and foreign origins', async () => {
+      for (const body of [{ username: 'qaadmin', password: 'wrong' }, { username: "qaadmin' OR 1=1 --", password: appPassword }]) assert.equal((await request('/api/session', { method: 'POST', body })).status, 401);
+      assert.equal((await request('/api/session', { method: 'POST', body: { username: 'qaadmin', password: appPassword }, headers: { Origin: 'https://unrelated.invalid' } })).status, 403);
+    });
+    let admin = await login('QAADMIN', appPassword), other = await login('qaother', secondPassword);
+    let bootstrap, state, skuCatalog;
+    await test('Authenticated bootstrap loads all catalogs from MySQL', async () => {
+      const res = await request('/api/bootstrap', admin); assert.equal(res.status, 200, res.text); bootstrap = res.json;
+      assert.equal(bootstrap.catalogs.tints.items.length, 66); assert.equal(bootstrap.catalogs.shapes.items.length, 13);
+      assert.equal(bootstrap.catalogs.materials.blanks.length, 186); assert.equal(bootstrap.catalogs.materials.products.length, 19);
+      assert.equal(bootstrap.documents.state.value, null); assert.deepEqual(bootstrap.documents.saved.value, []); assert.deepEqual(bootstrap.documents.skus.value.skus, []);
+      const [[sessions]] = await pool.query('SELECT COUNT(*) AS n FROM leinz_sessions WHERE LENGTH(token_hash) = 32'); assert.equal(Number(sessions.n), 2);
+      const cam = { yaw: -.62, pitch: .12, zoom: 1 };
+      state = { active: 'a', shape: '001', width: 52, height: 38, dbl: 18, sph: -4, cyl: -1, axis: 180, add: 0,
+        pdR: 31.5, pdL: 31.5, heightR: 19, heightL: 19, allowanceDiameter: 2, sync: true, showFrame: true, showTemples: true, frameStyle: 'full-rim', camera: cam,
+        a: { index: '1.74', productId: 'DMO:SPHW74', skuId: null, blankIdR: null, blankIdL: null, tintCode: '09S', customColor: '#9b7965', note: '', camera: cam },
+        b: { index: '1.50', productId: 'SOA:SPHW50', skuId: null, blankIdR: null, blankIdL: null, tintCode: '09S', customColor: '#9b7965', note: '', camera: cam } };
+    });
+    await test('CSRF, Unicode CSRF and wrong Origin cannot mutate documents', async () => {
+      const body = { value: state, revision: 0 };
+      for (const params of [{ cookie: admin.cookie }, { ...admin, csrf: 'x'.repeat(64) }, { ...admin, csrf: 'é'.repeat(64) }, { ...admin, headers: { Origin: 'http://wrong.invalid' } }]) {
+        const res = await request('/api/documents/state', { method: 'PUT', body, ...params }); assert.equal(res.status, 403, res.text);
+      }
+      assert.equal((await getDoc('state', admin)).revision, 0);
+    });
+    await test('State round-trip preserves frame/tint/centration settings and Unicode', async () => {
+      state.a.note = 'Café 👓 / <script>not executable</script> / apostrophe: \' '; state.frameStyle = 'half-rimless'; state.showTemples = false;
+      const res = await putDoc('state', state, 0, admin); assert.equal(res.status, 200, res.text); assert.equal(res.json.revision, 1);
+      assert.deepEqual((await getDoc('state', admin)).value, state);
+    });
+    await test('Per-user state/history isolation and query-parameter spoof protection', async () => {
+      const mine = await getDoc('state', other); assert.equal(mine.value, null); assert.equal(mine.revision, 0);
+      const res = await request(`/api/documents/state?userId=${admin.user.id}`, other); assert.equal(res.status, 200); assert.equal(res.json.value, null);
+    });
+    await test('Stale writes return 409 with current document; concurrent CAS has one winner', async () => {
+      const stale = await putDoc('state', { ...state, width: 53 }, 0, admin); assert.equal(stale.status, 409); assert.equal(stale.json.error.code, 'revision_conflict'); assert.equal(stale.json.document.revision, 1);
+      const races = await Promise.all([putDoc('state', { ...state, width: 54 }, 1, admin), putDoc('state', { ...state, width: 55 }, 1, admin)]);
+      assert.deepEqual(races.map(r => r.status).sort(), [200, 409]); assert.equal((await getDoc('state', admin)).revision, 2);
+    });
+    await test('SKU master supports all allowed indices, quoted/Unicode codes and shared access', async () => {
+      const materials = bootstrap.catalogs.materials;
+      const variants = ['1.50', '1.56', '1.57', '1.60', '1.67', '1.74'].map((index, i) => {
+        const product = materials.products.find(p => p.activeForSimulator && p.index === index && materials.blanks.some(b => b.productId === p.id));
+        assert(product, `Missing actual product ${index}`);
+        const blank = materials.blanks.find(b => b.productId === product.id);
+        return { index, enabled: true, power: { sphMin: -20, sphMax: 12, cylMin: -7, cylMax: 0, addMin: 0, addMax: 4 }, assignments: [{ id: `qa-assignment-${i}`, supplier: product.supplier, productId: product.id, blankIds: [blank.id] }] };
+      });
+      skuCatalog = { schema: 'trl-sku-catalog/1.0', skus: ["LEINZ'57", 'CAFE', 'CAFÉ'].map((code, i) => ({ id: `qa-sku-${i}`, code, name: `Produk Café 👓 ${i}`, active: true, variants: clone(variants), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() })) };
+      const res = await putDoc('skus', skuCatalog, 0, admin); assert.equal(res.status, 200, res.text); assert.equal(res.json.revision, 1);
+      assert.deepEqual((await getDoc('skus', other)).value.skus.map(s => s.code), ["LEINZ'57", 'CAFE', 'CAFÉ']);
+    });
+    await test('Invalid supplier/blank/range/duplicate SKU is rejected without data loss', async () => {
+      const invalid = [];
+      let item = clone(skuCatalog); item.skus[0].variants[0].assignments[0].supplier = 'INVALID'; invalid.push(item);
+      item = clone(skuCatalog); item.skus[0].variants[0].assignments[0].blankIds = ['missing-blank']; invalid.push(item);
+      item = clone(skuCatalog); item.skus[0].variants[0].power.cylMax = 1; invalid.push(item);
+      item = clone(skuCatalog); item.skus[1].code = item.skus[0].code.toLowerCase(); invalid.push(item);
+      for (const value of invalid) { const res = await putDoc('skus', value, 1, admin); assert.equal(res.status, 422, res.text); }
+      assert.equal((await getDoc('skus', admin)).revision, 1);
+    });
+    await test('Consultation history round-trip, malformed entries and duplicate IDs', async () => {
+      const entry = { id: 'qa-saved-1', title: 'Konsultasi Café 👓', createdAt: new Date().toISOString(), state: clone(state), data: { choices: [{ index: '1.74', tint: null }, { index: '1.50', tint: null }] } };
+      const res = await putDoc('saved', [entry], 0, admin); assert.equal(res.status, 200, res.text);
+      assert.deepEqual((await getDoc('saved', admin)).value, [entry]); assert.deepEqual((await getDoc('saved', other)).value, []);
+      for (const value of [[{ ...entry, data: { choices: 'wrong' } }], [entry, entry], Array.from({ length: 31 }, (_, i) => ({ ...entry, id: `qa-${i}` }))]) assert.equal((await putDoc('saved', value, 1, admin)).status, 422);
+      assert.equal((await getDoc('saved', admin)).revision, 1);
+    });
+    await test('Malformed JSON, invalid state/revision, prototype keys and oversize bodies fail safely', async () => {
+      assert.equal((await request('/api/documents/state', { method: 'PUT', rawBody: '{', ...admin })).status, 400);
+      assert.equal((await request('/api/documents/state', { method: 'PUT', rawBody: '[]', ...admin })).status, 400);
+      assert.equal((await request('/api/documents/state', { method: 'PUT', body: {}, ...admin, headers: { 'Content-Type': 'text/plain' } })).status, 415);
+      assert.equal((await request('/api/documents/state', { method: 'PUT', rawBody: '{"value":null,"revision":2,"__proto__":{"polluted":true}}', ...admin })).status, 422);
+      assert.equal((await putDoc('state', { ...state, width: 500 }, 2, admin)).status, 422);
+      assert.equal((await putDoc('state', state, '2', admin)).status, 422);
+      assert.equal((await request('/api/documents/state', { method: 'PUT', body: { value: 'x'.repeat(8 * 1024 * 1024 + 1), revision: 2 }, ...admin })).status, 413);
+      assert.equal((await getDoc('state', admin)).revision, 2);
+    });
+    await test('Static server exposes UI only; source, secrets and traversal are blocked', async () => {
+      const page = await request('/'); assert.equal(page.status, 200); assert.match(page.headers['content-type'], /text\/html/);
+      assert.match(page.headers['content-security-policy'], /object-src 'none'/);
+      const runtime = await request('/runtime-config.js'); assert.equal(runtime.status, 200); assert.match(runtime.text, /"mode":"mysql"/); assert(!runtime.text.includes(config.mysql.password));
+      const doubleSlashRuntime = await request('//runtime-config.js'); assert.equal(doubleSlashRuntime.status, 200); assert.match(doubleSlashRuntime.text, /"mode":"mysql"/);
+      for (const path of ['/.env', '/server/config.mjs', '/database/001_initial.sql', '/package.json', '/%2e%2e%2f.env', '/%2e%2e%2fserver%2fconfig.mjs']) assert.equal((await request(path)).status, 404, path);
+      for (const path of ['/%00', '/%GG', '/%5c.env']) assert.equal((await request(path)).status, 400, path);
+      assert.equal((await request('/api/documents/unknown', admin)).status, 404);
+      assert.equal((await request('/api/documents/state', { method: 'POST', body: {}, ...admin })).status, 405);
+      const head = await request('/index.html', { method: 'HEAD' }); assert.equal(head.status, 200); assert.equal(head.text, '');
+    });
+    await test('Migration/seed reruns preserve user documents and SKU revisions', async () => {
+      const before = { state: await getDoc('state', admin), saved: await getDoc('saved', admin), skus: await getDoc('skus', admin) };
+      await migrate(pool); await seed(pool); await seed(pool);
+      for (const key of ['state', 'saved', 'skus']) assert.deepEqual(await getDoc(key, admin), before[key]);
+    });
+    await test('Application restart loads committed state/history/SKU and existing sessions', async () => {
+      state.a.note = 'QA restart marker 👓';
+      const write = await putDoc('state', state, 2, admin); assert.equal(write.status, 200, write.text);
+      await stopApp(); await pool.end(); pool = createPool(config); await startApp();
+      assert.equal((await getDoc('state', admin)).value.a.note, 'QA restart marker 👓');
+      assert.equal((await getDoc('saved', admin)).value.length, 1);
+      assert.equal((await getDoc('skus', other)).value.skus.length, 3);
+    });
+    await test('Expired and logged-out sessions cannot access or mutate data', async () => {
+      await pool.execute('UPDATE leinz_sessions SET expires_at = DATE_SUB(UTC_TIMESTAMP(), INTERVAL 1 HOUR) WHERE user_id = ?', [other.user.id]);
+      assert.equal((await request('/api/session', other)).json.authenticated, false);
+      assert.equal((await request('/api/bootstrap', other)).status, 401);
+      const logout = await request('/api/session', { method: 'DELETE', ...admin }); assert.equal(logout.status, 200); assert.match(logout.headers['set-cookie'][0], /Max-Age=0/);
+      assert.equal((await request('/api/bootstrap', admin)).status, 401);
+    });
+    await test('Failed database calls return sanitized failure without success acknowledgement', async () => {
+      await pool.end();
+      const res = await request('/api/health'); assert.equal(res.status, 503); assert.equal(res.json.error.code, 'service_unavailable');
+      assert(!res.text.includes(config.mysql.password) && !res.text.includes('SELECT') && !res.text.includes(PROJECT_ROOT));
+    });
+    console.log('Persistent test data retained only in the explicitly named disposable database for --verify-persistence after a database restart.');
+  }
+  console.log(JSON.stringify({ ok: failures.length === 0, passed: passed.length, failed: failures.length, databaseVersion: info.version, mode: process.argv.includes('--verify-persistence') ? 'database-restart' : 'integration' }));
+} finally {
+  await stopApp();
+  try { await pool.end(); } catch { /* already closed in failure-path test */ }
+}

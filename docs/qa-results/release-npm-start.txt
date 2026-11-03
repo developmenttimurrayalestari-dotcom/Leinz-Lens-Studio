@@ -1,0 +1,8 @@
+Exact MySQL 5.7.24 ready on loopback port 33307 for leinz_test_release200
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> leinz-lens-studio@2.0.0 start
+> node server/start.mjs
+
+Leinz Lens Studio siap pada http://127.0.0.1:33309 (listener 127.0.0.1:33309).
+{"ok":true,"command":"npm start","health":{"status":"ok","version":"2.0.0","database":"mysql","databaseVersion":"5.7.24","ready":true},"htmlStatus":200,"runtimeMode":"mysql"}

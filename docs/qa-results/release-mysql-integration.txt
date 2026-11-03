@@ -1,0 +1,22 @@
+Exact MySQL 5.7.24 ready on loopback port 33307 for leinz_test_release200
+{"databaseVersion":"5.7.24","sqlMode":"IGNORE_SPACE,ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION","maxAllowedPacket":67108864,"testDatabase":"leinz_test_release200"}
+PASS Fresh installation: migration and seeding CLIs are repeatable
+PASS Account installation and diagnostic CLI; duplicate account is preserved
+PASS Unauthenticated API and raw catalog reads are rejected
+PASS Login rejects wrong passwords, injected usernames and foreign origins
+PASS Authenticated bootstrap loads all catalogs from MySQL
+PASS CSRF, Unicode CSRF and wrong Origin cannot mutate documents
+PASS State round-trip preserves frame/tint/centration settings and Unicode
+PASS Per-user state/history isolation and query-parameter spoof protection
+PASS Stale writes return 409 with current document; concurrent CAS has one winner
+PASS SKU master supports all allowed indices, quoted/Unicode codes and shared access
+PASS Invalid supplier/blank/range/duplicate SKU is rejected without data loss
+PASS Consultation history round-trip, malformed entries and duplicate IDs
+PASS Malformed JSON, invalid state/revision, prototype keys and oversize bodies fail safely
+PASS Static server exposes UI only; source, secrets and traversal are blocked
+PASS Migration/seed reruns preserve user documents and SKU revisions
+PASS Application restart loads committed state/history/SKU and existing sessions
+PASS Expired and logged-out sessions cannot access or mutate data
+PASS Failed database calls return sanitized failure without success acknowledgement
+Persistent test data retained only in the explicitly named disposable database for --verify-persistence after a database restart.
+{"ok":true,"passed":18,"failed":0,"databaseVersion":"5.7.24","mode":"integration"}

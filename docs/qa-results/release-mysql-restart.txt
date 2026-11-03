@@ -1,0 +1,4 @@
+Exact MySQL 5.7.24 ready on loopback port 33307 for leinz_test_release200
+{"databaseVersion":"5.7.24","sqlMode":"IGNORE_SPACE,ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION","maxAllowedPacket":67108864,"testDatabase":"leinz_test_release200"}
+PASS Database restart preserves committed state, history and shared SKU
+{"ok":true,"passed":1,"failed":0,"databaseVersion":"5.7.24","mode":"database-restart"}

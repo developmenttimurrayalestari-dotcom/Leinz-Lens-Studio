@@ -1,0 +1,25 @@
+{
+  "name": "leinz-lens-studio",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Leinz Lens Studio with a MySQL 5.7 compatible server",
+  "engines": {
+    "node": ">=22 <23 || >=24 <25"
+  },
+  "packageManager": "npm@11.9.0",
+  "scripts": {
+    "dev": "node server/start.mjs",
+    "start": "node server/start.mjs",
+    "build": "node server/check.mjs",
+    "check": "node server/check.mjs",
+    "db:migrate": "node server/cli.mjs migrate",
+    "db:seed": "node server/cli.mjs seed",
+    "admin:create": "node server/cli.mjs admin-create",
+    "doctor": "node server/cli.mjs doctor",
+    "test": "node server/check.mjs && node tools/test-blank-engine.mjs && node tools/test-sku-manager.mjs && node tools/test-viewer.mjs && node --test server/test-core.mjs tools/test-storage-client.mjs tools/test-consultation-utils.mjs",
+    "test:mysql": "node tools/test-server.mjs"
+  },
+  "dependencies": {
+    "mysql2": "3.24.6"
+  }
+}
