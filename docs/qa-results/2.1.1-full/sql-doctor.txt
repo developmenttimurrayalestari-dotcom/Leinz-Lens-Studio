@@ -1,0 +1,31 @@
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> leinz-lens-studio@2.1.1 doctor
+> node server/cli.mjs doctor
+
+{
+  "ok": true,
+  "node": "v24.22.1",
+  "database": "MySQL",
+  "databaseVersion": "5.7.24",
+  "schemaVersion": 2,
+  "tables": 7,
+  "catalogs": 3,
+  "catalogRevision": 1,
+  "masterCounts": {
+    "products": 19,
+    "blanks": 186,
+    "powerRules": 2026,
+    "frameShapes": 13,
+    "tinting": 66,
+    "skus": 0
+  },
+  "catalogContentSha256": {
+    "materials": "c0efc3b8b9535b38fb0a48760521275ff159d26af802bf8d21c185ad42fea456",
+    "shapes": "6f2257c279bb0fe691d0deda99c1255b0171c1653134d254b88098ed721822a6",
+    "tints": "ed19014abcb814dc9e723324ad1ebb8a385a26fb80bddbf0176c3fbd91700a65"
+  },
+  "activeUsers": 1,
+  "maxAllowedPacket": 16777216,
+  "applicationOrigin": "http://127.0.0.1:38317"
+}

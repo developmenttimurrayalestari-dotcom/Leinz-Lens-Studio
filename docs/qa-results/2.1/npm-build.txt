@@ -1,0 +1,6 @@
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> leinz-lens-studio@2.1.0 build
+> node server/check.mjs
+
+Pemeriksaan selesai: 30 berkas JavaScript valid, aset HTML tersedia, dan katalog JSON dapat dibaca. Tidak ada tahap kompilasi tambahan.

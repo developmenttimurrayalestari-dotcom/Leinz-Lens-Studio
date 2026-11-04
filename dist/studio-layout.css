@@ -1,0 +1,71 @@
+/* Studio 2.1.1: product controls beside the comparison, shared geometry before tint. */
+.pair-product-config{margin:0 0 16px;padding:13px 14px;border:1px solid #e4e7df;border-radius:10px;background:#fffdf9}
+.pair-product-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:13px}
+.pair-product-heading .config-title{border:0;padding:0;min-width:0}
+.pair-product-heading .config-title h2{font-size:13px}
+.pair-product-heading .config-title p{font-size:10px;line-height:1.5;margin:3px 0 0}
+.pair-product-switch{flex-shrink:0}
+.pair-product-switch button{font-size:11px;min-height:32px}
+.product-config-grid{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(84px,.4fr) minmax(0,1.2fr);gap:12px;align-items:start}
+.product-field{min-width:0}
+.product-field .subheading{margin:0 0 7px;min-height:16px}
+.product-field .field-label{font-size:12px;min-height:16px;margin:0 0 7px}
+.product-field .subheading .text-button{padding:0;font-size:10px;white-space:nowrap}
+.product-field select{min-height:38px;font-size:11px;padding:9px 7px}
+.product-field .microcopy{line-height:1.5;margin-top:7px}
+.config-panel{padding:17px;display:block}
+.shared-config-title{padding-bottom:13px;justify-content:space-between;gap:12px}
+.shared-config-title h2{font-size:15px}
+.shared-config-title p{line-height:1.5}
+.shared-scope{font-size:11px;font-weight:650;white-space:nowrap;color:#607454;background:#f0f4eb;border:1px solid #e0e7d8;border-radius:7px;padding:7px 8px}
+.config-panel .shape-section,.config-panel .rx-section{padding:13px 0;grid-column:auto;grid-row:auto}
+.config-panel details[open]>summary{margin-bottom:10px}
+.config-panel details>summary .icon{transform:none}
+.config-panel details[open]>summary .icon{transform:rotate(180deg)}
+.shape-select-label{font-size:10px;margin:0 0 5px;color:#7c8773}
+#studio-shape{font-size:12px;padding:8px 9px;min-height:35px}
+.config-panel .shape-section .field-grid{margin-top:10px;gap:7px}
+.config-panel .field-grid label{font-size:10px}
+.config-panel .field-grid input{font-size:12px;min-height:33px;padding:7px;margin-top:4px}
+.config-panel .shape-section .field-grid.three input{padding-right:24px}
+.config-panel .allowance-field{margin-top:9px}
+.config-panel .allowance-field input{padding:6px 8px;min-height:32px}
+.config-panel .shape-gallery{padding:10px 0 0;border:0;margin:0}
+.config-panel .shape-gallery>summary{font-size:10px;font-weight:500;color:#8c654e}
+.config-panel .shape-gallery .shape-grid-named{grid-template-columns:repeat(2,minmax(0,1fr))}
+.config-panel .rx-section .field-grid.two{grid-template-columns:repeat(4,minmax(0,1fr));gap:9px 6px;margin-top:10px}
+.config-panel .rx-section .field-grid label{font-size:9px;white-space:nowrap;min-width:0}
+.config-panel .rx-section .field-grid input{display:block;padding:7px 5px;font-size:12px}
+.config-panel .rx-section .microcopy{font-size:9px;margin-top:9px;line-height:1.5}
+.config-panel .selected-tint-block{grid-column:auto;grid-row:auto;padding:14px 0}
+@media(min-width:1101px){
+ .workspace{grid-template-columns:minmax(0,1fr) 340px}
+ .preview-panel{grid-column:1;grid-row:1}
+ .config-panel{grid-column:2;grid-row:1/3}
+ .catalog-panel{grid-column:1;grid-row:2}
+}
+@media(max-width:1100px){
+ .workspace{display:flex;flex-direction:column}
+ .workspace>.panel{width:100%;min-width:0}
+ .config-panel{display:block;position:static}
+ .config-panel .shape-gallery .shape-grid-named{grid-template-columns:repeat(4,minmax(0,1fr))}
+ .config-panel .shape-gallery .shape-grid-reference{grid-template-columns:repeat(9,minmax(0,1fr))}
+}
+@media(max-width:700px){
+ .pair-product-config{padding:12px}
+ .pair-product-heading{align-items:flex-start;flex-wrap:wrap;gap:10px}
+ .pair-product-heading .config-title h2{font-size:14px}
+ .pair-product-switch{margin-left:auto}
+ .product-config-grid{grid-template-columns:minmax(0,1fr) 92px;gap:12px 10px}
+ .product-field-material{grid-column:1/-1}
+ .product-field select{font-size:12px;min-height:40px}
+ .product-field .subheading label,.product-field .field-label{font-size:11px}
+ .product-field .microcopy{font-size:10px}
+ .config-panel .shape-gallery .shape-grid-named{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .config-panel .shape-gallery .shape-grid-reference{grid-template-columns:repeat(5,minmax(0,1fr))}
+}
+@media(max-width:380px){
+ .product-config-grid{grid-template-columns:minmax(0,1fr)}
+ .product-field-material{grid-column:auto}
+ .config-panel .rx-section .field-grid.two{grid-template-columns:repeat(2,minmax(0,1fr))}
+}

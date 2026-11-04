@@ -1,0 +1,23 @@
+{
+  "version": "2.1.1",
+  "releaseDate": "2026-11-04",
+  "sourceCommit": "01c9e2bb488061b0fad5e586718dd117f4d1aeed",
+  "mysqlTarget": "5.7.24",
+  "nodeTested": "24.22.1",
+  "codeFilesVerified": 108,
+  "unitTestsPassed": 121,
+  "mysqlIntegrationGroupsPassed": 24,
+  "sqlImportRestoreChecksPassed": 8,
+  "mysqlRestartTestsPassed": 1,
+  "startupSmokePassed": true,
+  "masterCounts": {
+    "suppliers": 2,
+    "products": 19,
+    "blanks": 186,
+    "powerRules": 2026,
+    "frameShapes": 13,
+    "tinting": 66,
+    "skus": 0
+  },
+  "dataScope": "Packaged reference masters; operational/browser-local SKU and edits require their own export."
+}

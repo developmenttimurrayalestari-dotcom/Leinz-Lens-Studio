@@ -12,6 +12,7 @@
     'unknown-product': 'Produk bahan tidak ditemukan pada katalog.',
     'index-mismatch': 'Indeks produk bahan berbeda dari indeks yang dipilih.',
     'inactive-product': 'Produk bahan tidak diaktifkan pada simulator.',
+    'inactive-blank': 'Blank diarsipkan pada master bahan baku.',
     'inactive-index': 'Indeks tidak tersedia pada simulator.',
     'sku-disabled': 'Varian indeks pada SKU tidak aktif.',
     'sku-index-mismatch': 'Varian SKU tidak sesuai indeks yang dipilih.',
@@ -164,7 +165,7 @@
       if (indexLabel(product.index) !== chosenIndex) {
         errors.push(error('productId', 'index-mismatch', reasonLabels['index-mismatch'])); commonReasons.push('index-mismatch');
       }
-      if (product.activeForSimulator === false) {
+      if (product.activeForSimulator === false || product.active === false) {
         errors.push(error('productId', 'inactive-product', reasonLabels['inactive-product'])); commonReasons.push('inactive-product');
       }
     }
@@ -202,7 +203,7 @@
         const assignedProduct = productMap.get(assignment?.productId);
         const assignedBlanks = assignment?.blankIds;
         const valid = assignedProduct && assignedProduct.supplier === assignment.supplier &&
-          indexLabel(assignedProduct.index) === chosenIndex && assignedProduct.activeForSimulator !== false &&
+          indexLabel(assignedProduct.index) === chosenIndex && assignedProduct.activeForSimulator !== false && assignedProduct.active !== false &&
           Array.isArray(assignedBlanks) && assignedBlanks.length > 0 &&
           assignedBlanks.every(id => blankMap.get(id)?.productId === assignedProduct.id);
         if (valid) validAssignments.push(assignment);
@@ -216,7 +217,7 @@
     const contextAllowed = errors.length === 0 && !commonReasons.length;
     const rows = selectedBlanks.map(blank => {
       const allRules = rulesByBlank.get(blank.id) || [];
-      const matchingRules = rxValid ? allRules.filter(rule =>
+      const matchingRules = rxValid ? allRules.filter(rule => rule.active !== false &&
         inRange(prescription.sph, rule.sphFrom, rule.sphTo) &&
         inRange(prescription.cyl, rule.cylFrom, rule.cylTo) &&
         inRange(prescription.add, rule.addFrom, rule.addTo)) : [];
@@ -229,13 +230,14 @@
       const fitsR = sizeMarginR !== null ? sizeMarginR >= -EPSILON : null;
       const fitsL = sizeMarginL !== null ? sizeMarginL >= -EPSILON : null;
       const reasons = [...commonReasons];
+      if (blank.active === false) reasons.push('inactive-blank');
       if (!skuAssignmentMatches) reasons.push('sku-blank-unassigned');
       if (rxValid && !rawPowerMatches) reasons.push('raw-power-outside');
       if (!diameterValid) reasons.push('invalid-blank-diameter');
       const reasonsR = [...reasons], reasonsL = [...reasons];
       if (fitsR === false) reasonsR.push('blank-too-small-r');
       if (fitsL === false) reasonsL.push('blank-too-small-l');
-      const baseEligible = contextAllowed && rawPowerMatches && skuAssignmentMatches && skuPowerAllowed && diameterValid;
+      const baseEligible = contextAllowed && blank.active !== false && rawPowerMatches && skuAssignmentMatches && skuPowerAllowed && diameterValid;
       return {
         blank: { ...blank }, allSourceRows: sourceRows(allRules), sourceRows: sourceRows(matchingRules),
         matchingRuleIds: unique(matchingRules.map(r => r.id)), ruleCount: allRules.length, matchingRuleCount: matchingRules.length,
@@ -257,8 +259,8 @@
       eligibleRCount: forR.length, eligibleLCount: forL.length, eligibleBothCount: forBoth.length,
       minDiameterR: diameters(forR)[0] ?? null, minDiameterL: diameters(forL)[0] ?? null,
       minDiameterBoth: diameters(forBoth)[0] ?? null,
-      availableDiameters: diameters(rows), assignedDiameters: diameters(rows.filter(r => r.skuAssignmentMatches)),
-      powerEligibleDiameters: diameters(rows.filter(r => contextAllowed && r.rawPowerMatches && r.skuAssignmentMatches && r.skuPowerMatches)),
+      availableDiameters: diameters(rows.filter(r=>r.blank.active!==false)), assignedDiameters: diameters(rows.filter(r => r.blank.active!==false && r.skuAssignmentMatches)),
+      powerEligibleDiameters: diameters(rows.filter(r => contextAllowed && r.blank.active!==false && r.rawPowerMatches && r.skuAssignmentMatches && r.skuPowerMatches)),
       requiredDiameterR: frameValid ? frame.eyes.R.requiredDiameter : null,
       requiredDiameterL: frameValid ? frame.eyes.L.requiredDiameter : null
     };

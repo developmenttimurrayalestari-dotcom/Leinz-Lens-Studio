@@ -2,6 +2,7 @@ import { createRequire } from 'node:module';
 import { validationError } from './errors.mjs';
 const require = createRequire(import.meta.url);
 const { validateCatalog, SCHEMA } = require('../dist/sku-manager.js');
+const { validateCatalogBundle, validateOpticalProfile } = require('../dist/catalog-model.js');
 const INDICES = ['1.50', '1.56', '1.57', '1.60', '1.67', '1.74'];
 const BOUNDS = {
   width: [35, 70], height: [25, 60], dbl: [10, 28], sph: [-20, 12], cyl: [-7, 0], axis: [0, 180], add: [0, 4],
@@ -45,6 +46,13 @@ export function validateState(value, catalogs, { legacy = false } = {}) {
   for (const key of ['sync', 'showFrame', 'showTemples']) if (value[key] !== undefined && typeof value[key] !== 'boolean') throw validationError(`Nilai ${key} harus berupa boolean.`);
   if (value.frameStyle !== undefined && !['full-rim', 'half-rimless', 'rimless'].includes(value.frameStyle)) throw validationError('Jenis frame tidak valid.');
   if (value.shapeRevision !== undefined && value.shapeRevision !== null && (typeof value.shapeRevision !== 'string' || value.shapeRevision.length > 64)) throw validationError('Revisi bentuk tidak valid.');
+  if (value.optics !== undefined) {
+    if (!isObject(value.optics) || typeof value.optics.useOverride !== 'boolean') throw validationError('Pengaturan optik harus memuat useOverride boolean.');
+    if (value.optics.useOverride || value.optics.profile !== undefined) {
+      const checked = validateOpticalProfile(value.optics.profile);
+      if (!checked.ok) throw validationError(checked.errors.join(' '));
+    }
+  }
   camera(value.camera, 'camera');
   for (const key of ['a', 'b']) {
     const slot = value[key];
@@ -95,4 +103,11 @@ export function validateDocument(key, value, catalogs) {
 export function validateRevision(value) {
   if (!Number.isInteger(value) || value < 0 || value >= 4294967295) throw validationError('Revisi dokumen tidak valid.');
   return value;
+}
+
+export function validateMasterCatalogs(value, context = {}) {
+  checkJson(value);
+  const checked = validateCatalogBundle(value, context);
+  if (!checked.ok) throw validationError(checked.errors.slice(0, 10).join(' '));
+  return checked.value;
 }

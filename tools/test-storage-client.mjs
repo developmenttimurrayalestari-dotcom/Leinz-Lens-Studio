@@ -7,6 +7,7 @@ const { LeinzStorage } = require('../dist/storage-client.js');
 const STATE = 'leinz-lens-studio-state-v1';
 const SAVED = 'leinz-lens-studio-saved-v1';
 const SKUS = 'leinz-sku-catalog-v1';
+const CATALOGS = 'leinz-master-catalogs-v1';
 const copy = value => structuredClone(value);
 const response = (status, value) => ({ status, ok: status >= 200 && status < 300, async json() { return copy(value); } });
 const deferred = () => {
@@ -20,7 +21,8 @@ function mysqlFixture(intercept = () => undefined) {
   const documents = {
     state: { value: { revisionLabel: 'initial' }, revision: 0 },
     saved: { value: [], revision: 0 },
-    skus: { value: { schema: 'trl-sku-catalog/1.0', skus: [] }, revision: 0 }
+    skus: { value: { schema: 'trl-sku-catalog/1.0', skus: [] }, revision: 0 },
+    catalogs: { value: { tints: { items: [] }, materials: { products: [], blanks: [], rules: [] }, shapes: { items: [] } }, revision: 0 }
   };
   const user = { id: 1, username: 'qa-user' }, csrfToken = 'a'.repeat(64);
   const fixture = { requests, statuses, localCalls, documents, user, csrfToken, adapter: null };
@@ -29,7 +31,7 @@ function mysqlFixture(intercept = () => undefined) {
     if (request.path === '/api/session' && request.method === 'POST') return response(200, { authenticated: true, user, csrfToken });
     if (request.path === '/api/session' && request.method === 'DELETE') return response(200, { authenticated: false });
     if (request.path === '/api/bootstrap') return response(200, {
-      catalogs: { tints: { items: [] }, materials: { products: [] }, shapes: { items: [] } },
+      catalogs: documents.catalogs.value, catalogRevision:documents.catalogs.revision,
       documents, user, csrfToken
     });
     const key = request.path.split('/').at(-1);
@@ -63,6 +65,75 @@ function mysqlFixture(intercept = () => undefined) {
   fixture.puts = () => requests.filter(request => request.method === 'PUT');
   return fixture;
 }
+
+test('master catalogs use the dedicated atomic endpoint and acknowledged revision', async () => {
+  const fixture = await mysqlFixture().ready();
+  const value=fixture.adapter.getCatalogs(); value.tints.items.push({code:'QA'});
+  const result=await fixture.adapter.saveCatalogs(value);
+  assert.deepEqual(result,value);
+  assert.equal(fixture.puts()[0].path,'/api/catalogs');
+  assert.equal(fixture.puts()[0].body.revision,0);
+  assert.equal(fixture.adapter.getCatalogRevision(),1);
+  result.tints.items.push({code:'MUTATED'});
+  assert.deepEqual(fixture.adapter.getCatalogs(),value,'Caller cannot mutate acknowledged cache.');
+});
+
+test('master catalog response lost after commit reconciles without duplicate writes',async()=>{
+  const fixture=await mysqlFixture((request,context)=>{
+    if(request.path==='/api/catalogs'&&request.method==='PUT'){context.defaultRequest(request);throw TypeError('Lost acknowledgement');}
+  }).ready();
+  const value=fixture.adapter.getCatalogs();value.shapes.items.push({code:'new'});
+  await fixture.adapter.saveCatalogs(value);
+  assert.equal(fixture.puts().length,1);
+  assert.equal(fixture.adapter.status().pending,false);
+  assert.equal(fixture.adapter.getCatalogRevision(),1);
+});
+
+test('stale master update keeps remote data and blocks an automatic overwrite',async()=>{
+  const fixture=await mysqlFixture().ready();
+  const requested=fixture.adapter.getCatalogs();requested.tints.items.push({code:'LOCAL'});
+  fixture.documents.catalogs={value:{...fixture.adapter.getCatalogs(),shapes:{items:[{code:'REMOTE'}]}},revision:1};
+  await assert.rejects(fixture.adapter.saveCatalogs(requested),e=>e.status===409);
+  assert.equal(fixture.adapter.getCatalogs().shapes.items[0].code,'REMOTE');
+  assert.equal(fixture.adapter.status().pending,true);
+  assert.equal(fixture.adapter.status().conflict,true);
+  await assert.rejects(fixture.adapter.refreshCatalogs(),e=>e.code==='PENDING_WRITES');
+  await assert.rejects(fixture.adapter.retryPending(),e=>e.status===409);
+  assert.equal(fixture.puts().length,1);
+});
+
+test('catalog refresh reads current MySQL revision without touching browser storage',async()=>{
+  const fixture=await mysqlFixture().ready();
+  fixture.documents.catalogs.value.materials.products=[{id:'REMOTE'}];fixture.documents.catalogs.revision=4;
+  const value=await fixture.adapter.refreshCatalogs();
+  assert.equal(value.materials.products[0].id,'REMOTE');
+  assert.equal(fixture.adapter.getCatalogRevision(),4);
+  assert.deepEqual(fixture.localCalls,[]);
+});
+
+test('missing catalog revision fails initialization instead of using an unguarded write',async()=>{
+  const fixture=mysqlFixture((request,context)=>{
+    if(request.path==='/api/bootstrap')return response(200,{catalogs:{},documents:context.documents,user:context.user,csrfToken:context.csrfToken});
+  });
+  await fixture.adapter.connect();
+  await assert.rejects(fixture.adapter.load(),e=>e.code==='INVALID_RESPONSE');
+  assert.equal(fixture.adapter.loaded,false);
+});
+
+test('browser managed catalogs survive reload and stale tabs cannot overwrite a new master',async()=>{
+  const values=new Map();
+  const options={runtime:{mode:'browser'},localStorage:{getItem:key=>values.get(key)??null,setItem:(key,value)=>values.set(key,value)},
+    fetchImpl:async()=>response(200,{items:[]})};
+  const one=new LeinzStorage(options),two=new LeinzStorage(options);
+  await one.load();await two.load();
+  const value=one.getCatalogs();value.tints.items=[{code:'NEW'}];
+  await one.saveCatalogs(value);
+  assert.deepEqual(JSON.parse(values.get(CATALOGS)),value);
+  await assert.rejects(two.saveCatalogs(two.getCatalogs()),e=>e.code==='CONFLICT');
+  await two.refreshCatalogs();
+  assert.deepEqual(two.getCatalogs(),value);
+  const three=new LeinzStorage(options);assert.deepEqual(await three.load(),value);
+});
 
 test('runtime mode must be explicit and API addresses cannot point to a different origin', () => {
   assert.throws(() => new LeinzStorage(), error => error.code === 'RUNTIME_MISSING');

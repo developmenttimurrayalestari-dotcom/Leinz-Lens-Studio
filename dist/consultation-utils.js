@@ -3,6 +3,7 @@
   const object = value => value !== null && typeof value === 'object' && !Array.isArray(value);
   const safeId = value => typeof value === 'string' && /^[A-Za-z0-9][A-Za-z0-9:._-]{0,127}$/.test(value);
   const validSavedEntry = item => object(item) && safeId(item.id) && object(item.state);
+  const catalogModel = global.LeinzCatalogModel || (typeof require === 'function' ? require('./catalog-model.js') : null);
   function historyTintLabels(item) {
     const choices = Array.isArray(item?.data?.choices) ? item.data.choices : ['a','b'].map(key=>({tint:{code:item?.state?.[key]?.tintCode}}));
     return choices.slice(0,2).map(choice => typeof choice?.tint?.code === 'string' ? choice.tint.code : 'Bening').join(' / ');
@@ -13,10 +14,17 @@
     if (!object(frame)||!object(rx)||!catalogs.shapes.items.some(s=>s.code===frame.shapeCode)) throw Error('Bentuk frame atau resep pada berkas tidak valid.');
     if(payload.preview!==undefined&&!object(payload.preview))throw Error('Pengaturan preview harus berupa objek.');
     const preview=payload.preview||{},display=preview.frameDisplay;
+    let optics={useOverride:false,profile:{}};
+    if(preview.optics!==undefined){
+      if(!object(preview.optics)||typeof preview.optics.useOverride!=='boolean'||!object(preview.optics.profile))throw Error('Pengaturan perhitungan CT/ET harus berisi useOverride boolean dan profil optik.');
+      const checked=catalogModel?.validateOpticalProfile(preview.optics.profile);
+      if(!checked?.ok)throw Error('Profil perhitungan CT/ET tidak valid. '+(checked?.errors?.join(' ')||'Validator belum tersedia.'));
+      optics={useOverride:preview.optics.useOverride,profile:checked.value};
+    }
     if(display!==undefined&&!object(display))throw Error('Pengaturan frame harus berupa objek.');
     if(preview.cameraSynchronized!==undefined&&typeof preview.cameraSynchronized!=='boolean')throw Error('Status sinkronisasi kamera harus berupa boolean.');
     for(const key of ['visible','templesEnabled','templesVisible'])if(display?.[key]!==undefined&&typeof display[key]!=='boolean')throw Error('Status tampilan frame harus berupa boolean.');
-    const state={active:'a',shape:frame.shapeCode,shapeRevision:frame.shapeReference?.geometryRevision||null,
+    const state={active:'a',optics,shape:frame.shapeCode,shapeRevision:frame.shapeReference?.geometryRevision||null,
       width:frame.a,height:frame.b,dbl:frame.dbl,allowanceDiameter:frame.allowanceDiameter??2,
       sph:rx.sph,cyl:rx.cyl,axis:rx.axis,add:rx.add,pdR:rx.monocularPd?.R,pdL:rx.monocularPd?.L,
       heightR:rx.fittingHeight?.R,heightL:rx.fittingHeight?.L,sync:payload.preview?.cameraSynchronized!==false,

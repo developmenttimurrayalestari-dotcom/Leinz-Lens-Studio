@@ -1,0 +1,265 @@
+{
+  "version": "2.1.1",
+  "sourceCommit": "01c9e2bb488061b0fad5e586718dd117f4d1aeed",
+  "inventory": {
+    "suppliers": 2,
+    "products": 19,
+    "blanks": 186,
+    "powerRules": 2026,
+    "frameShapes": 13,
+    "tinting": 66,
+    "skus": 0
+  },
+  "supplierBreakdown": [
+    {
+      "supplier": "DMO",
+      "products": 5,
+      "blanks": 45,
+      "powerRules": 521,
+      "diameters": [
+        65,
+        70,
+        75
+      ]
+    },
+    {
+      "supplier": "SOA",
+      "products": 14,
+      "blanks": 141,
+      "powerRules": 1505,
+      "diameters": [
+        65,
+        69,
+        70,
+        72,
+        74,
+        75,
+        76,
+        80
+      ]
+    }
+  ],
+  "indexBreakdown": [
+    {
+      "index": "1.50",
+      "products": 2,
+      "blanks": 12,
+      "powerRules": 157,
+      "diameters": [
+        70,
+        72,
+        76,
+        80
+      ]
+    },
+    {
+      "index": "1.56",
+      "products": 2,
+      "blanks": 14,
+      "powerRules": 71,
+      "diameters": [
+        70,
+        75,
+        80
+      ]
+    },
+    {
+      "index": "1.57",
+      "products": 3,
+      "blanks": 25,
+      "powerRules": 272,
+      "diameters": [
+        75
+      ]
+    },
+    {
+      "index": "1.59",
+      "products": 1,
+      "blanks": 15,
+      "powerRules": 120,
+      "diameters": [
+        76,
+        80
+      ]
+    },
+    {
+      "index": "1.60",
+      "products": 3,
+      "blanks": 40,
+      "powerRules": 641,
+      "diameters": [
+        70,
+        72,
+        75
+      ]
+    },
+    {
+      "index": "1.67",
+      "products": 3,
+      "blanks": 34,
+      "powerRules": 291,
+      "diameters": [
+        70,
+        75
+      ]
+    },
+    {
+      "index": "1.74",
+      "products": 5,
+      "blanks": 46,
+      "powerRules": 474,
+      "diameters": [
+        65,
+        69,
+        70,
+        74,
+        75,
+        80
+      ]
+    }
+  ],
+  "activeSimulatorIndices": [
+    "1.50",
+    "1.56",
+    "1.57",
+    "1.60",
+    "1.67",
+    "1.74"
+  ],
+  "catalogOnlyIndices": [
+    "1.59"
+  ],
+  "sourceIntegrity": {
+    "sourceRows": 2689,
+    "ruleRowReferences": 2689,
+    "uniqueReferencedRows": 2689,
+    "minRow": 2,
+    "maxRow": 2690,
+    "duplicateExtraRows": 663,
+    "orphanBlanks": 0,
+    "orphanRules": 0,
+    "duplicateProductIds": 0,
+    "duplicateBlankIds": 0,
+    "duplicateRuleIds": 0
+  },
+  "shapeCodes": [
+    "001",
+    "002",
+    "003",
+    "004",
+    "005",
+    "006",
+    "007",
+    "008",
+    "009",
+    "round",
+    "cat-eye",
+    "rectangle",
+    "square"
+  ],
+  "shapePointCounts": [
+    {
+      "code": "001",
+      "points": 80
+    },
+    {
+      "code": "002",
+      "points": 80
+    },
+    {
+      "code": "003",
+      "points": 80
+    },
+    {
+      "code": "004",
+      "points": 80
+    },
+    {
+      "code": "005",
+      "points": 80
+    },
+    {
+      "code": "006",
+      "points": 80
+    },
+    {
+      "code": "007",
+      "points": 80
+    },
+    {
+      "code": "008",
+      "points": 80
+    },
+    {
+      "code": "009",
+      "points": 80
+    },
+    {
+      "code": "round",
+      "points": 256
+    },
+    {
+      "code": "cat-eye",
+      "points": 256
+    },
+    {
+      "code": "rectangle",
+      "points": 256
+    },
+    {
+      "code": "square",
+      "points": 256
+    }
+  ],
+  "tintKinds": {
+    "Gradient": 20,
+    "Solid": 46
+  },
+  "tintGroups": {
+    "fashion": 38,
+    "special": 4,
+    "sunglass": 14,
+    "therapeutic": 10
+  },
+  "previewUnavailable": [
+    "400",
+    "42S",
+    "CON",
+    "CONG",
+    "NOTE"
+  ],
+  "opticalProfiles": {
+    "products": 0,
+    "blanks": 0
+  },
+  "database": {
+    "tables": [
+      "leinz_schema_migrations",
+      "leinz_users",
+      "leinz_sessions",
+      "leinz_catalog_documents",
+      "leinz_catalog_revision",
+      "leinz_workspace_documents",
+      "leinz_user_documents"
+    ],
+    "catalogKeys": [
+      "materials",
+      "shapes",
+      "tints"
+    ],
+    "workspaceDefault": {
+      "schema": "trl-sku-catalog/1.0",
+      "skus": []
+    },
+    "canonicalSha256": {
+      "materials": "c0efc3b8b9535b38fb0a48760521275ff159d26af802bf8d21c185ad42fea456",
+      "shapes": "6f2257c279bb0fe691d0deda99c1255b0171c1653134d254b88098ed721822a6",
+      "tints": "ed19014abcb814dc9e723324ad1ebb8a385a26fb80bddbf0176c3fbd91700a65"
+    },
+    "utf8JsonBytes": {
+      "materials": 460095,
+      "shapes": 49925,
+      "tints": 50616
+    }
+  }
+}

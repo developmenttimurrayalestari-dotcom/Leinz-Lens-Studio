@@ -1,0 +1,17 @@
+{
+  "ok": true,
+  "checks": [
+    "SQL JSON round-trip preserves entire three catalog documents",
+    "SQL canonical hashes match server catalogDigest",
+    "SKU document matches seed and contains zero fabricated SKUs",
+    "SQL file bytes/SHA256 match inventory",
+    "Generator repeat is byte-identical from a different working directory",
+    "No DROP/TRUNCATE/CREATE DATABASE/CREATE USER/GRANT statement"
+  ],
+  "sha256": {
+    "database/leinz-schema.sql": "f494683db34cbaa88e85d7557a2da3cdfe84182a71be1f665fce1f43444bfd4e",
+    "database/leinz-master-data.sql": "e19091f3cfa9e5dbbe12392becfecec54ccc86464fd697a95c65bb2ad358924b",
+    "database/leinz-schema-and-master-data.sql": "14e9e52db3fd26b77686bd954c7ed4946f7325d08dde3c79d98d5f304e60e557",
+    "database/master-data-inventory.json": "b3622bb51202158d6e6a22834da1b8808914a181a6f13b10c59aafe3d9fcccd6"
+  }
+}

@@ -1,10 +1,12 @@
 /* Explicit browser/MySQL persistence. A failed server never falls back to localStorage. */
 (function (global) {
   'use strict';
+  const CATALOG_KEY = 'leinz-master-catalogs-v1';
   const KEYS = Object.freeze({
     'leinz-lens-studio-state-v1': 'state',
     'leinz-lens-studio-saved-v1': 'saved',
-    'leinz-sku-catalog-v1': 'skus'
+    'leinz-sku-catalog-v1': 'skus',
+    [CATALOG_KEY]: 'catalogs'
   });
   const error = (message, code, status = 0, document = null) => Object.assign(new Error(message), {code, status, document});
   const encode = value => value === null || value === undefined ? null : JSON.stringify(value);
@@ -27,7 +29,7 @@
       this.documents = new Map(); this.queues = new Map(); this.pending = new Map();
       this.failures = new Map(); this.conflicts = new Set(); this.inflight = 0;
       this.user = null; this.csrfToken = null; this.authenticated = this.mode === 'browser';
-      this.loaded = false;
+      this.loaded = false; this.catalogs = null; this.baseCatalogs = null;
     }
     status() {
       return {mode:this.mode, user:this.user, authenticated:this.authenticated,
@@ -83,7 +85,9 @@
     _accept(key, doc) {
       if (!doc || !Number.isSafeInteger(doc.revision) || doc.revision < 0 || !Object.hasOwn(doc, 'value')) throw error('Revisi data server tidak valid.', 'INVALID_RESPONSE');
       this.documents.set(key, {value:doc.value, text:encode(doc.value), revision:doc.revision});
+      if (key === CATALOG_KEY) this.catalogs = doc.value;
     }
+    _documentPath(key) { return key === CATALOG_KEY ? '/catalogs' : '/documents/' + KEYS[key]; }
     _sameValue(key, left, right) {
       if (KEYS[key] === 'skus' && left && right) return left.schema === right.schema && equal(left.skus,right.skus);
       return equal(left,right);
@@ -96,15 +100,45 @@
           if (!r.ok) throw error('Katalog ' + name + ' belum dapat dibaca.', 'CATALOG_MISSING');
           return r.json();
         }));
+        this.baseCatalogs = Object.fromEntries(names.map((name,i) => [name,values[i]]));
+        let text;
+        try { text = this.local?.getItem(CATALOG_KEY); }
+        catch { throw error('Master browser belum dapat dibaca. Periksa izin penyimpanan browser.', 'LOCAL_STORAGE'); }
+        try { this.catalogs = text ? JSON.parse(text) : this.baseCatalogs; }
+        catch { throw error('Master browser rusak. Pulihkan ekspor JSON sebelum melanjutkan.', 'INVALID_CATALOGS'); }
         this.loaded = true; this._emit();
-        return Object.fromEntries(names.map((name,i) => [name,values[i]]));
+        return this.getCatalogs();
       }
       const bootstrap = await this._request('/bootstrap');
       if (!bootstrap.catalogs || !bootstrap.documents || !bootstrap.user || !bootstrap.csrfToken) throw error('Data awal server belum lengkap.', 'INVALID_RESPONSE');
-      for (const [key, name] of Object.entries(KEYS)) this._accept(key, bootstrap.documents[name]);
+      for (const [key, name] of Object.entries(KEYS)) if (key !== CATALOG_KEY) this._accept(key, bootstrap.documents[name]);
+      this._accept(CATALOG_KEY, {value:bootstrap.catalogs, revision:bootstrap.catalogRevision});
       this.user = bootstrap.user; this.csrfToken = bootstrap.csrfToken;
       this.authenticated = true; this.loaded = true; this._emit();
-      return bootstrap.catalogs;
+      return this.getCatalogs();
+    }
+    getCatalogs() { return this.catalogs === null ? null : JSON.parse(JSON.stringify(this.catalogs)); }
+    getCatalogRevision() { return this.mode === 'mysql' ? this.documents.get(CATALOG_KEY)?.revision ?? null : null; }
+    async saveCatalogs(value) {
+      if (!this.loaded) throw error('Master belum dimuat.', 'NOT_INITIALIZED');
+      if (this.mode === 'browser') {
+        let current;
+        try { const text = this.local?.getItem(CATALOG_KEY); current = text ? JSON.parse(text) : this.baseCatalogs; }
+        catch { throw error('Master browser belum dapat dibaca; penyimpanan dibatalkan.', 'LOCAL_STORAGE'); }
+        if (!equal(current,this.catalogs)) throw error('Master berubah pada tab lain. Muat master terbaru sebelum menyimpan.', 'CONFLICT',409);
+      }
+      await this.setItem(CATALOG_KEY,JSON.stringify(value));
+      if (this.mode === 'browser') this.catalogs = JSON.parse(this.getItem(CATALOG_KEY));
+      return this.getCatalogs();
+    }
+    async refreshCatalogs() {
+      if (this.pending.has(CATALOG_KEY)) throw error('Masih ada perubahan master tertunda. Selesaikan penyimpanan atau muat ulang halaman dengan meninjau draft terlebih dahulu.', 'PENDING_WRITES');
+      if (this.mode === 'mysql') this._accept(CATALOG_KEY,await this._request('/catalogs'));
+      else {
+        try { const text = this.local?.getItem(CATALOG_KEY); this.catalogs = text ? JSON.parse(text) : this.baseCatalogs; }
+        catch { throw error('Master browser belum dapat dibaca.', 'INVALID_CATALOGS'); }
+      }
+      return this.getCatalogs();
     }
     getItem(key) {
       if (this.mode === 'browser') return this.local?.getItem(key) ?? null;
@@ -133,13 +167,13 @@
           if (!current) throw error('Data server belum dimuat.', 'NOT_INITIALIZED');
           if (!this._sameValue(key,current.value,value)) {
             let saved;
-            try { saved = await this._request('/documents/' + KEYS[key], {method:'PUT',body:{value,revision:current.revision}}); }
+            try { saved = await this._request(this._documentPath(key), {method:'PUT',body:{value,revision:current.revision}}); }
             catch (e) {
               // A lost HTTP acknowledgement may still mean the transaction committed.
               // A read can confirm exactly that value without issuing another write.
               if (e.code === 'NETWORK_ERROR' || e.code === 'INVALID_RESPONSE') {
                 try {
-                  const actual = await this._request('/documents/' + KEYS[key]);
+                  const actual = await this._request(this._documentPath(key));
                   if (this._sameValue(key,actual.value,value)) saved = actual;
                   else if (actual.revision !== current.revision) e = error('Data telah berubah di sesi lain. Muat ulang sebelum menyimpan.', 'CONFLICT', 409, actual);
                 } catch { /* Retain the original failure and the pending draft. */ }
@@ -181,10 +215,11 @@
       await this.flush();
       await this._request('/session', {method:'DELETE'});
       this.documents.clear(); this.csrfToken = null; this.user = null;
-      this.authenticated = false; this.loaded = false; this._emit();
+      this.authenticated = false; this.loaded = false; this.catalogs = null; this._emit();
     }
   }
   LeinzStorage.KEYS = KEYS;
+  LeinzStorage.CATALOG_KEY = CATALOG_KEY;
   global.LeinzStorage = LeinzStorage;
   if (typeof module !== 'undefined' && module.exports) module.exports = {LeinzStorage, equal};
 })(typeof window !== 'undefined' ? window : globalThis);

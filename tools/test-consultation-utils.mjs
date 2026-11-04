@@ -170,3 +170,29 @@ test('invalid camera and unavailable tint codes are rejected without altering th
   assert.throws(() => consultationToState(input, catalogs), /Kode tint/);
   assert.deepEqual(input, before);
 });
+
+test('optical finishing parameters round-trip independently from blank CT and ET', () => {
+  const input=consultation();
+  input.preview.optics={useOverride:true,profile:{minCenterMm:1.2,minEdgeMm:1.4,frontPowerD:4,
+    frontCurveBasis:'reference-index',curveReferenceIndex:1.53,frontRadiusMm:132.5,
+    frontConic:0,backConic:0,source:'lab',reference:'QA supplied parameters; no production validation claim'}};
+  const before=copy(input),state=consultationToState(input,catalogs);
+  assert.deepEqual(state.optics,input.preview.optics);
+  assert.deepEqual(input,before);
+  state.optics.profile.minCenterMm=1.7;
+  assert.equal(input.preview.optics.profile.minCenterMm,1.2,'Imported state must not alias the evidence.');
+  assert.equal(consultationToState(consultation(),catalogs).optics.useOverride,false,'Legacy consultation keeps current master defaults.');
+});
+
+test('invalid optical overrides reject the whole consultation instead of inventing thinner results', () => {
+  for(const optics of [null,[],{useOverride:'false',profile:{}},{useOverride:true},
+    {useOverride:true,profile:{minCenterMm:.1}},
+    {useOverride:true,profile:{minEdgeMm:NaN}},
+    {useOverride:false,profile:{frontRadiusMm:5}},
+    {useOverride:true,profile:{frontCurveBasis:'unknown'}},
+    {useOverride:true,profile:{backConic:-1}},
+    {useOverride:true,profile:{source:'lab',reference:''}}]){
+    const input=consultation();input.preview.optics=optics;
+    assert.throws(()=>consultationToState(input,catalogs),/CT\/ET/);
+  }
+});

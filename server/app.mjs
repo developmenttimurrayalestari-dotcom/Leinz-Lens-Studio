@@ -98,6 +98,16 @@ export function createApp({ store, config, logger = console }) {
         const current = await requireSession();
         return sendJson(res, 200, { ...(await store.bootstrap(current.user.id)), user: current.user, csrfToken: current.csrfToken });
       }
+      if (pathname === '/api/catalogs') {
+        await requireSession();
+        if (req.method === 'GET') return sendJson(res, 200, await store.getCatalogs());
+        if (req.method === 'PUT') {
+          await requireCsrf();
+          const body = await readBody(req, config.bodyLimit);
+          return sendJson(res, 200, await store.putCatalogs(body.value, body.revision));
+        }
+        throw new AppError(405, 'method', 'Metode permintaan tidak tersedia.');
+      }
       const documentPath = pathname.match(/^\/api\/documents\/(state|saved|skus)$/);
       if (documentPath) {
         const current = await requireSession(), key = documentPath[1];
@@ -116,8 +126,13 @@ export function createApp({ store, config, logger = console }) {
         res.writeHead(200, { 'Content-Type': TYPES['.js'], 'Cache-Control': 'no-store', 'Content-Length': Buffer.byteLength(code) }); return res.end(req.method === 'HEAD' ? undefined : code);
       }
       if (pathname.split('/').some(part => part.startsWith('.'))) throw new AppError(404, 'not_found', 'Berkas tidak ditemukan.');
-      // Reference data is supplied from MySQL after authentication, not exposed before login.
-      if (/^\/assets\/(materials|shapes|tints)\.json$/.test(pathname)) await requireSession();
+      // Authenticated catalog downloads use the same committed MySQL master as
+      // bootstrap/Manage. Never return the unedited seed file in server mode.
+      const catalogAsset = pathname.match(/^\/assets\/(materials|shapes|tints)\.json$/);
+      if (catalogAsset) {
+        await requireSession();
+        return sendJson(res, 200, (await store.getCatalogs()).value[catalogAsset[1]]);
+      }
       let target = resolve(staticRoot, '.' + (pathname === '/' ? '/index.html' : pathname));
       if (!target.startsWith(staticRoot + sep)) throw new AppError(404, 'not_found', 'Berkas tidak ditemukan.');
       try { target = await realpath(target); } catch (error) { if (['ENOENT', 'ENOTDIR'].includes(error.code)) throw new AppError(404, 'not_found', 'Berkas tidak ditemukan.'); throw error; }

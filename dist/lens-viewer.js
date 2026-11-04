@@ -1,5 +1,5 @@
-/* LensViewer — self-contained illustrative lens geometry for the TRL tint preview.
- * This renderer is an educational shape model, not a Lensware production calculation.
+/* LensViewer — smooth lens display using LensOptics surface geometry.
+ * Calculation follows explicit curve/thickness assumptions, not a production design.
  * Input contour: ordered points, x to the right and y down. Units/extent are normalized.
  * opticalCenters: per-eye offsets from the boxing center in mm, x right and y down.
  * eyeLayout: 'wearer' reflects only the paired display: L on the left, R on the right.
@@ -8,6 +8,9 @@
  */
 (function (global) {
   'use strict';
+
+  const LensOptics = global.LensOptics || (typeof require === 'function' ? require('./lens-optics.js') : null);
+  if (!LensOptics) throw new Error('Load lens-optics.js before lens-viewer.js.');
 
   const TAU = Math.PI * 2;
   const clamp = (value, lo, hi) => Math.max(lo, Math.min(hi, value));
@@ -118,8 +121,7 @@
     const index = clamp(number(options.index, 1.60), 1.45, 1.9);
     const sph = clamp(number(options.sph, -4), -24, 16);
     const cyl = clamp(number(options.cyl, -1), -12, 12);
-    const axis = number(options.axis, 180) * Math.PI / 180;
-    const minimumThickness = clamp(number(options.centerThickness, 1.5), 0.5, 10);
+    const axis = number(options.axis, 180);
     let contour = prepareContour(options.shapePoints, width, height, options.contourMode);
     // Mirror the outline, not the optical cylinder axis convention.
     if (options.mirrorContour) contour = contour.map(p => [-p[0], p[1]]).reverse();
@@ -135,21 +137,26 @@
       const f = ring / rings;
       contour.forEach(p => surfacePoints.push([p[0] * f, p[1] * f]));
     }
-    // A fixed illustrative front curvature. It deliberately does not infer a supplier BC.
-    const frontRadius = 1000 * (index - 1) / 4;
-    const delta = (x, y) => {
-      const dx = x - opticalCenter.x, dy = y - opticalCenter.y;
-      return -(sph * (dx * dx + dy * dy) + cyl * Math.pow(dx * Math.sin(axis) - dy * Math.cos(axis), 2)) / (2000 * (index - 1));
+    let opticalModel = LensOptics.create({ index, sph, cyl, axis, contour, opticalCenter,
+      profile: options.opticalProfile || {}, legacyMinimum: options.centerThickness });
+    if (opticalModel.valid && surfacePoints.some(([x, y]) => !Number.isFinite(opticalModel.thickness(x, y)))) {
+      opticalModel = { ...opticalModel, valid: false, metrics: null,
+        errors: ['Permukaan optik tidak dapat mencakup seluruh area frame. Periksa kurva, resep, dan sentrasi.'] };
+    }
+    // An invalid optical construction has a neutral, flat display placeholder;
+    // none of its dummy dimensions are returned as calculated CT/ET.
+    const center = opticalModel.valid ? opticalModel.resolved.centerDesignMm : 1.5;
+    const front = opticalModel.valid ? (x, y) => center / 2 - opticalModel.frontSag(x, y) : () => center / 2;
+    const thickness = opticalModel.valid ? opticalModel.thickness : () => center;
+    const displaySurface = (x, y, back = false) => {
+      const z = front(x, y) - (back ? thickness(x, y) : 0);
+      if (Number.isFinite(z)) return z;
+      // Reflections or hardware may extend outside the finite optical aperture.
+      // Only that visual extension is pinned to the nearest valid rim point.
+      const nearest = contour.reduce((best, p) => !best || Math.hypot(p[0] - x, p[1] - y) < best.distance
+        ? { point: p, distance: Math.hypot(p[0] - x, p[1] - y) } : best, null).point;
+      return front(nearest[0], nearest[1]) - (back ? thickness(nearest[0], nearest[1]) : 0);
     };
-    // Keep every mesh sample separated by the illustrative minimum. Blank CT/ET
-    // are raw-material metadata and are never used as finished thickness here.
-    const minDelta = Math.min(0, ...surfacePoints.map(p => delta(p[0], p[1])));
-    const center = minimumThickness - minDelta;
-    const front = (x, y) => {
-      const dx = x - opticalCenter.x, dy = y - opticalCenter.y;
-      return center / 2 + Math.sqrt(Math.max(1, frontRadius * frontRadius - dx * dx - dy * dy)) - frontRadius;
-    };
-    const thickness = (x, y) => center + delta(x, y);
     const vertices = [], faces = [];
     const addSurface = side => {
       const start = vertices.length;
@@ -181,60 +188,15 @@
     vertices.forEach(v => { v.z -= offset; });
     faces.forEach(face => { face.normal = normal(...face.ids.map(i => vertices[i])); });
     sidePanels.forEach(panel => { panel.normal = normal(...panel.ids.slice(0, 3).map(i => vertices[i])); });
-    return { width, height, contour, opticalCenter, vertices, faces, sidePanels, frontRim, backRim, front, thickness, offset };
-  }
-
-  function contourContainsPoint(contour, x, y) {
-    // Boundary points count as part of the finished outline. Distances are mm.
-    let inside = false;
-    for (let i = 0, j = contour.length - 1; i < contour.length; j = i++) {
-      const a = contour[j], b = contour[i], dx = b[0] - a[0], dy = b[1] - a[1];
-      const length2 = dx * dx + dy * dy;
-      const t = length2 > 0 ? clamp(((x - a[0]) * dx + (y - a[1]) * dy) / length2, 0, 1) : 0;
-      if (Math.hypot(x - a[0] - t * dx, y - a[1] - t * dy) <= 1e-7) return true;
-      if ((a[1] > y) !== (b[1] > y) && x < a[0] + (y - a[1]) * dx / dy) inside = !inside;
-    }
-    return inside;
+    return { width, height, contour, opticalCenter, vertices, faces, sidePanels, frontRim, backRim, front, thickness, offset, opticalModel, displaySurface };
   }
 
   function meshThicknessMetrics(mesh, includeLocation = false) {
-    if (!mesh) return null;
-    const edgeValues = [], edgeLocations = [];
-    for (let i = 0; i < mesh.contour.length; i++) {
-      const p = mesh.contour[i], q = mesh.contour[(i + 1) % mesh.contour.length];
-      const dx = q[0] - p[0], dy = q[1] - p[1];
-      const start = mesh.thickness(p[0], p[1]);
-      const end = mesh.thickness(q[0], q[1]);
-      const midpoint = mesh.thickness(p[0] + dx / 2, p[1] + dy / 2);
-      edgeValues.push(start);
-      if (includeLocation) edgeLocations.push({ x: p[0], y: p[1], value: start });
-      // Thickness is a quadratic field. Along each straight outline segment it
-      // is a*t*t + b*t + start; include its stationary point between vertices.
-      const a = 2 * (start + end - 2 * midpoint), b = end - start - a;
-      if (Math.abs(a) > 1e-12) {
-        const t = -b / (2 * a);
-        if (t > 0 && t < 1) {
-          const x = p[0] + t * dx, y = p[1] + t * dy, value = mesh.thickness(x, y);
-          edgeValues.push(value);
-          if (includeLocation) edgeLocations.push({ x, y, value });
-        }
-      }
-    }
-    const oc = mesh.opticalCenter;
-    const opticalCenterInside = contourContainsPoint(mesh.contour, oc.x, oc.y);
-    const centerThicknessMm = opticalCenterInside ? mesh.thickness(oc.x, oc.y) : null;
-    const edgeMinMm = Math.min(...edgeValues), edgeMaxMm = Math.max(...edgeValues);
-    // The only isolated interior stationary point is the OC. For singular
-    // power matrices, any stationary line through the contour also reaches its
-    // boundary, so the edge extrema cover the same value even with OC outside.
-    const result = {
-      centerThicknessMm, opticalCenterInside, edgeMinMm, edgeMaxMm,
-      minMm: centerThicknessMm === null ? edgeMinMm : Math.min(edgeMinMm, centerThicknessMm),
-      maxMm: centerThicknessMm === null ? edgeMaxMm : Math.max(edgeMaxMm, centerThicknessMm)
-    };
-    if (includeLocation) {
-      if (centerThicknessMm !== null) edgeLocations.push({ x: oc.x, y: oc.y, value: centerThicknessMm });
-      result.maxLocation = edgeLocations.reduce((best, point) => !best || point.value > best.value ? point : best, null);
+    if (!mesh?.opticalModel?.valid) return null;
+    const result = { ...mesh.opticalModel.metrics };
+    if (!includeLocation) {
+      delete result.minLocation; delete result.maxLocation;
+      delete result.edgeMinLocation; delete result.edgeMaxLocation;
     }
     return result;
   }
@@ -247,7 +209,8 @@
       if (!this.ctx) throw new Error('Canvas 2D is unavailable.');
       this.options = {
         widthMm: 52, heightMm: 38, sph: -4, cyl: -1, axis: 180, index: 1.60,
-        centerThickness: 1.5, colorHex: null, midColorHex: null, bottomColorHex: null,
+        centerThickness: 1.5, opticalProfile: null, opticalProfiles: null,
+        colorHex: null, midColorHex: null, bottomColorHex: null,
         kind: 'Solid', visualStrength: 1, showFrame: false, frameStyle: 'full-rim', showTemples: true, background: '#f4f5f2',
         pairMode: false, eyeLayout: 'observer', bridgeMm: 18, opticalCenters: null, autoRotateSpeed: 0.36,
         showMeasurements: false, measurementsValid: true, contourMode: 'raster',
@@ -358,12 +321,23 @@
       const eyes = { R: meshThicknessMetrics(this.mesh), L: meshThicknessMetrics(this.leftMesh) };
       const present = Object.values(eyes).filter(Boolean);
       const centers = present.map(eye => eye.centerThicknessMm).filter(Number.isFinite);
+      const opticalModels = { R: this.mesh?.opticalModel, L: this.leftMesh?.opticalModel };
+      const models = Object.values(opticalModels).filter(Boolean);
+      const valid = models.every(model => model.valid);
+      const optical = Object.fromEntries(Object.entries(opticalModels).map(([eye, model]) => [eye, model ? {
+        valid: model.valid, model: model.model, profile: { ...model.profile }, resolved: model.resolved ? { ...model.resolved } : null,
+        errors: model.errors.slice(), warnings: model.warnings.slice(), calibrationStatus: model.calibrationStatus,
+        manufacturingMode: model.manufacturingMode || 'frame-optimized-surfacing'
+      } : null]));
       return {
-        unit: 'mm', source: 'illustrative-renderer-model', productionVerified: false,
+        unit: 'mm', source: 'spherical-toric-sag-model', model: LensOptics.MODEL, valid,
+        productionVerified: false, calibrationStatus: 'unverified',
         measurementAxis: 'model-z-separation',
-        minimumThicknessAssumptionMm: clamp(number(this.options.centerThickness, 1.5), 0.5, 10),
-        eyes,
-        pair: {
+        minimumThicknessAssumptionMm: models[0]?.profile.minCenterMm ?? 1.5,
+        errors: [...new Set(models.flatMap(model => model.errors))],
+        warnings: [...new Set(models.flatMap(model => model.warnings))],
+        opticalProfiles: optical, eyes,
+        pair: valid && present.length ? {
           eyeCount: present.length, centerAvailableEyeCount: centers.length,
           centerMinMm: centers.length ? Math.min(...centers) : null,
           centerMaxMm: centers.length ? Math.max(...centers) : null,
@@ -371,7 +345,7 @@
           edgeMaxMm: Math.max(...present.map(eye => eye.edgeMaxMm)),
           minMm: Math.min(...present.map(eye => eye.minMm)),
           maxMm: Math.max(...present.map(eye => eye.maxMm))
-        }
+        } : null
       };
     }
 
@@ -389,8 +363,9 @@
     }
 
     _rebuildGeometry() {
-      this.mesh = makeGeometry({ ...this.options, opticalCenter: this.options.opticalCenters?.R });
-      this.leftMesh = this.options.pairMode ? makeGeometry({ ...this.options, mirrorContour: true, opticalCenter: this.options.opticalCenters?.L }) : null;
+      const profile = eye => this.options.opticalProfiles?.[eye] || this.options.opticalProfile;
+      this.mesh = makeGeometry({ ...this.options, opticalProfile: profile('R'), opticalCenter: this.options.opticalCenters?.R });
+      this.leftMesh = this.options.pairMode ? makeGeometry({ ...this.options, opticalProfile: profile('L'), mirrorContour: true, opticalCenter: this.options.opticalCenters?.L }) : null;
     }
 
     _bindEnvironment() {
@@ -437,7 +412,7 @@
 
     setOptions(partial = {}) {
       if (this.destroyed) return;
-      const geometryKeys = ['shapePoints', 'contourMode', 'widthMm', 'heightMm', 'sph', 'cyl', 'axis', 'index', 'centerThickness', 'pairMode', 'opticalCenters'];
+      const geometryKeys = ['shapePoints', 'contourMode', 'widthMm', 'heightMm', 'sph', 'cyl', 'axis', 'index', 'centerThickness', 'pairMode', 'opticalCenters', 'opticalProfile', 'opticalProfiles'];
       const rebuild = geometryKeys.some(key => Object.prototype.hasOwnProperty.call(partial, key) && partial[key] !== this.options[key]);
       this.options = { ...this.options, ...partial };
       if (partial.camera) {
@@ -564,7 +539,7 @@
       };
       for (const eye of eyes) {
         const mesh = eye.mesh, temporal = eye.eye === 'L' ? 1 : -1, nasalSide = -temporal;
-        const surfaceZ = (p, back = false) => mesh.front(p.x, p.y) - mesh.offset - (back ? mesh.thickness(p.x, p.y) : 0);
+        const surfaceZ = (p, back = false) => mesh.displaySurface(p.x, p.y, back) - mesh.offset;
         const outline = mesh.contour.filter((_, i) => i % 2 === 0).map(([x, y]) => ({ x, y }));
         const shell = (p, back = false, inset = false) => {
           const radius = Math.hypot(p.x, p.y) || 1, outward = inset ? 0 : .55;
@@ -767,7 +742,7 @@
 
       const tinted = /^#?[0-9a-f]{3}([0-9a-f]{3})?$/i.test(this.options.colorHex || '');
       const strength = clamp(number(this.options.visualStrength, 1), 0, 1.5);
-      const neutral = [226, 238, 243];
+      const neutral = [224, 234, 236];
       let top = rgb(this.options.colorHex, neutral);
       let bottom = rgb(this.options.bottomColorHex, [246, 248, 248]);
       let middle = /^#?[0-9a-f]{3}([0-9a-f]{3})?$/i.test(this.options.midColorHex || '') ? rgb(this.options.midColorHex, neutral) : null;
@@ -810,8 +785,13 @@
     _renderLens(eye, material) {
       const ctx = this.ctx;
       const { mesh, offsetX } = eye;
-      const { top, middle, bottom, tinted, gradient } = material;
+      const { top, middle, bottom, tinted, gradient } = mesh.opticalModel.valid ? material :
+        { top: [228, 233, 234], middle: null, bottom: [245, 247, 247], tinted: false, gradient: false };
       const { rotate, project, scale, originX } = this._transformation(mesh, offsetX);
+      const facing = Math.abs(rotate(0, 0, 1).z);
+      const index = clamp(number(this.options.index, 1.6), 1.3, 2);
+      const fresnel0 = Math.pow((index - 1) / (index + 1), 2);
+      const reflectance = fresnel0 + (1 - fresnel0) * Math.pow(1 - facing, 5);
       // Only perimeter vertices are needed for a seam-free continuous surface.
       const projected = [];
       [...mesh.frontRim, ...mesh.backRim].forEach(id => { projected[id] = project(mesh.vertices[id]); });
@@ -828,8 +808,8 @@
       ctx.scale(1, 0.13);
       const shadowRadius = Math.max(12, (bounds.maxX - bounds.minX) * 0.58);
       const shadow = ctx.createRadialGradient(0, 0, 0, 0, 0, shadowRadius);
-      shadow.addColorStop(0, 'rgba(42,62,76,0.13)');
-      shadow.addColorStop(0.6, 'rgba(42,62,76,0.04)');
+      shadow.addColorStop(0, 'rgba(42,62,70,0.11)');
+      shadow.addColorStop(0.6, 'rgba(42,62,70,0.035)');
       shadow.addColorStop(1, 'rgba(42,62,76,0)');
       ctx.fillStyle = shadow;
       ctx.beginPath(); ctx.arc(0, 0, shadowRadius, 0, TAU); ctx.fill();
@@ -840,9 +820,16 @@
       }).filter(f => f.n.z > -0.00001).sort((a, b) => a.depth - b.depth);
       sorted.forEach(({ panel, n }) => {
         const points = panel.ids.slice(0, 3).map(i => projected[i]);
-        const light = clamp(-n.x * 0.30 + n.y * 0.40 + n.z * 0.86, 0, 1);
+        const light = clamp(-n.x * 0.30 + n.y * 0.46 + n.z * 0.75, 0, 1);
+        // A polished edge carries a little body colour and broad environment
+        // reflection. Its opaque composited paint prevents translucent seams
+        // where neighbouring antialiased edge strips meet.
+        const edgeBase = [193, 210, 212];
+        const edgeTop = mix(edgeBase, top, tinted ? .56 : .14);
+        const edgeMid = middle ? mix(edgeBase, middle, .56) : null;
+        const edgeBottom = mix(edgeBase, bottom, tinted ? .56 : .14);
         this._path(panel.ids, projected);
-        ctx.fillStyle = this._facePaint(points, top, middle, bottom, 0.75 + light * 0.17, 1, gradient);
+        ctx.fillStyle = this._facePaint(points, edgeTop, edgeMid, edgeBottom, .71 + light * .27, 1, gradient);
         ctx.fill();
         // Subpixel overlap closes antialias gaps between adjacent edge panels.
         ctx.strokeStyle = ctx.fillStyle;
@@ -855,26 +842,41 @@
       const rearRim = frontFacing ? mesh.backRim : mesh.frontRim;
       const surfacePoint = (x, y) => project({
         x, y,
-        z: mesh.front(x, y) - (frontFacing ? 0 : mesh.thickness(x, y)) - mesh.offset,
+        z: mesh.displaySurface(x, y, !frontFacing) - mesh.offset,
         g: clamp(0.5 - y / mesh.height, 0, 1)
       });
       const references = [surfacePoint(0, 0), surfacePoint(mesh.width * 0.3, 0), surfacePoint(0, mesh.height * 0.3)];
       // Draw the far outline before the near face, which correctly hides occluded
       // rear-edge sections instead of creating a second ragged line on the face.
       this._path(rearRim, projected);
-      ctx.strokeStyle = tinted ? 'rgba(49,66,78,0.26)' : 'rgba(117,151,167,0.34)';
-      ctx.lineWidth = 0.65; ctx.stroke();
+      ctx.strokeStyle = tinted ? 'rgba(75,94,99,0.21)' : 'rgba(105,137,143,0.23)';
+      ctx.lineWidth = 0.6; ctx.stroke();
       // One continuous surface fill avoids seams between rasterized mesh triangles.
       // Its outline and light reflections still use the curved 3D surface geometry.
       this._path(rim, projected);
-      ctx.fillStyle = this._facePaint(references, top, middle, bottom, 1, tinted ? 1 : 0.65, gradient);
+      const faceAlpha = tinted ? .86 : .16 + Math.min(.19, reflectance * .28);
+      ctx.fillStyle = this._facePaint(references, top, middle, bottom, 1, faceAlpha, gradient);
       ctx.fill();
       this._path(rim, projected);
-      ctx.strokeStyle = tinted ? 'rgba(43,61,73,0.38)' : 'rgba(104,143,163,0.58)';
+      ctx.strokeStyle = tinted ? 'rgba(54,79,85,0.32)' : 'rgba(92,126,132,0.40)';
       ctx.lineJoin = 'round';
-      ctx.lineWidth = 0.9; ctx.stroke();
+      ctx.lineWidth = .85; ctx.stroke();
 
-      if (Math.abs(rotate(0, 0, 1).z) > 0.15) this._reflection(mesh, projected, rim, project, frontFacing, scale);
+      // Fine reflected edge glints use the physical rim and move with the lens.
+      // They are continuous paths, never triangular surface mesh outlines.
+      ctx.beginPath();
+      let drawing = false;
+      for (let i = 0; i <= rim.length; i++) {
+        const id = rim[i % rim.length], previous = rim[(i + rim.length - 1) % rim.length];
+        const p = projected[id], q = projected[previous];
+        const dx = p.x - q.x, dy = p.y - q.y;
+        const catchesLight = dx * .8 - dy * .6 > 0 && facing > .08;
+        if (catchesLight) { if (!drawing) ctx.moveTo(q.x, q.y); ctx.lineTo(p.x, p.y); }
+        drawing = catchesLight;
+      }
+      ctx.strokeStyle = 'rgba(255,255,255,.69)'; ctx.lineWidth = .55; ctx.lineCap = 'round'; ctx.stroke();
+
+      if (facing > .08) this._reflection(mesh, projected, rim, project, frontFacing, scale, reflectance, tinted);
       if (!this.options.showFrame && eye.label && bounds.maxX >= 0 && bounds.minX <= this.width) {
         ctx.save();
         ctx.font = '600 11px Arial, sans-serif';
@@ -997,7 +999,7 @@
       for (const x of [originX - bridgeHalf, originX + bridgeHalf]) line([{ x, y: bridgeY - 3 }, { x, y: bridgeY + 5 }], green);
       label('bridge', 'DBL', mm(bridge), originX, bridgeY - 23, green);
 
-      if (this.options.measurementsValid !== false) {
+      if (this.options.measurementsValid !== false && eyes.every(eye => eye.mesh.opticalModel.valid)) {
         const candidates = eyes.map(eye => ({ eye, metrics: meshThicknessMetrics(eye.mesh, true) }));
         // Equal maxima prefer the right-hand slot so that the callout stays clear
         // of the height dimension. Different eyes keep their own true maximum.
@@ -1093,31 +1095,50 @@
       ctx.restore();
     }
 
-    _reflection(mesh, projected, rim, project, frontFacing, scale) {
+    _reflection(mesh, projected, rim, project, frontFacing, scale, reflectance = .05, tinted = false) {
       const ctx = this.ctx;
       ctx.save();
       this._path(rim, projected); ctx.clip();
       const surfacePoint = (x, y) => {
-        const z = mesh.front(x, y) - (frontFacing ? 0 : mesh.thickness(x, y)) - mesh.offset;
+        const z = mesh.displaySurface(x, y, !frontFacing) - mesh.offset;
         return project({ x, y, z: z + (frontFacing ? 0.02 : -0.02) });
       };
-      // Soft reflected light follows the curved physical surface, rather than the screen.
+      // Soft studio-light reflections follow the curved physical surface. Their
+      // intensity uses the refractive-index Fresnel trend; no AR coating or
+      // measured transmission is implied by this illustrative lighting.
+      const sheen = Math.min(.28, .065 + reflectance * .24 + (tinted ? .025 : 0));
+      const strip = (topEdge, bottomEdge, alpha) => {
+        ctx.beginPath();
+        for (let i = 0; i <= 40; i++) {
+          const t = i / 40, x = mesh.width * (-.57 + .96 * t);
+          const p = surfacePoint(x, mesh.height * (topEdge + .06 * Math.sin(t * Math.PI)));
+          if (i) ctx.lineTo(p.x, p.y); else ctx.moveTo(p.x, p.y);
+        }
+        for (let i = 40; i >= 0; i--) {
+          const t = i / 40, x = mesh.width * (-.57 + .96 * t);
+          const p = surfacePoint(x, mesh.height * (bottomEdge + .045 * Math.sin(t * Math.PI)));
+          ctx.lineTo(p.x, p.y);
+        }
+        ctx.closePath(); ctx.fillStyle = `rgba(255,255,255,${alpha})`; ctx.fill();
+      };
+      strip(.37, .23, sheen * .45);
+      strip(.325, .25, sheen * .6);
       ctx.beginPath();
       for (let i = 0; i <= 32; i++) {
         const t = i / 32;
-        const x = -mesh.width * 0.55 + mesh.width * 0.76 * t;
-        const y = mesh.height * (0.24 + 0.07 * Math.sin(t * Math.PI));
+        const x = -mesh.width * 0.55 + mesh.width * .90 * t;
+        const y = mesh.height * (.27 + .05 * Math.sin(t * Math.PI));
         const p = surfacePoint(x, y);
         if (i) ctx.lineTo(p.x, p.y); else ctx.moveTo(p.x, p.y);
       }
-      ctx.strokeStyle = 'rgba(255,255,255,0.15)';
-      ctx.lineWidth = Math.max(3, mesh.width * scale * 0.025); ctx.lineCap = 'round'; ctx.stroke();
-      ctx.strokeStyle = 'rgba(255,255,255,0.22)';
-      ctx.lineWidth = 1.25; ctx.stroke();
+      ctx.strokeStyle = `rgba(255,255,255,${sheen})`;
+      ctx.lineWidth = Math.max(3, mesh.width * scale * .025); ctx.lineCap = 'round'; ctx.stroke();
+      ctx.strokeStyle = `rgba(255,255,255,${Math.min(.38, sheen * 1.7)})`;
+      ctx.lineWidth = .8; ctx.stroke();
 
       const p = surfacePoint(-mesh.width * 0.2, mesh.height * 0.02);
       const glow = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, mesh.width * scale * 0.48);
-      glow.addColorStop(0, 'rgba(255,255,255,0.08)');
+      glow.addColorStop(0, `rgba(255,255,255,${Math.min(.16, .05 + reflectance * .13)})`);
       glow.addColorStop(1, 'rgba(255,255,255,0)');
       ctx.fillStyle = glow; ctx.fillRect(0, 0, this.width, this.height);
       ctx.restore();

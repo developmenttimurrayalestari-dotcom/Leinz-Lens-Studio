@@ -18,7 +18,7 @@ try {
   if (!['migrate', 'seed', 'admin-create', 'doctor'].includes(command) || process.argv.length > 3) throw Error('Gunakan npm run db:migrate, db:seed, admin:create, atau doctor.');
   const config = loadConfig(); pool = createPool(config);
   if (command === 'migrate') { await migrate(pool); console.log('Migrasi selesai. Tabel dan data yang sudah ada dipertahankan.'); }
-  if (command === 'seed') { await seed(pool); console.log('Katalog referensi berhasil diisi. Master SKU dan konsultasi yang sudah ada dipertahankan.'); }
+  if (command === 'seed') { await seed(pool); console.log('Master yang belum tersedia berhasil diisi. Katalog yang sudah dikelola, Master SKU, dan konsultasi dipertahankan.'); }
   if (command === 'admin-create') {
     await inspectDatabase(pool);
     let name = config.adminUsername, password = config.adminPassword;
@@ -39,7 +39,7 @@ try {
     const report = await inspectDatabase(pool);
     const [[users]] = await pool.query('SELECT COUNT(*) AS activeUsers FROM leinz_users WHERE active = 1');
     if (!Number(users.activeUsers)) throw Error('Belum ada akun aktif. Jalankan npm run admin:create.');
-    console.log(JSON.stringify({ ok: true, node: process.version, database: 'MySQL', databaseVersion: report.version, schemaVersion: 1, tables: report.tables.length, catalogs: report.catalogCount, activeUsers: Number(users.activeUsers), maxAllowedPacket: report.maxAllowedPacket, applicationOrigin: config.origin }, null, 2));
+    console.log(JSON.stringify({ ok: true, node: process.version, database: 'MySQL', databaseVersion: report.version, schemaVersion: report.schemaVersion, tables: report.tables.length, catalogs: report.catalogCount, catalogRevision: report.catalogRevision, masterCounts: report.masterCounts, catalogContentSha256: report.catalogContentSha256, activeUsers: Number(users.activeUsers), maxAllowedPacket: report.maxAllowedPacket, applicationOrigin: config.origin }, null, 2));
   }
 } catch (error) {
   console.error(error.code ? `Perintah gagal (${error.code}). Periksa database, hak akses, dan konfigurasi .env.` : error.message);

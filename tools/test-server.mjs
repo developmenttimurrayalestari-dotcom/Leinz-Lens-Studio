@@ -7,12 +7,14 @@ import { request as httpRequest } from 'node:http';
 import { once } from 'node:events';
 import { randomBytes } from 'node:crypto';
 import { spawn } from 'node:child_process';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { loadConfig, PROJECT_ROOT } from '../server/config.mjs';
-import { createPool, migrate, seed, MysqlStore, TABLES, decodeJson } from '../server/db.mjs';
+import { createPool, migrate, seed, MysqlStore, TABLES, decodeJson, catalogDigest } from '../server/db.mjs';
 import { createApp } from '../server/app.mjs';
 
 if (process.env.LEINZ_ALLOW_TEST_DB !== '1' || !/^leinz_test_[A-Za-z0-9_]+$/.test(process.env.MYSQL_DATABASE || '')) {
-  console.error('Refusing integration tests: set LEINZ_ALLOW_TEST_DB=1 and MYSQL_DATABASE=leinz_test_<disposable_name>. This test resets the six Leinz tables in that database.');
+  console.error('Refusing integration tests: set LEINZ_ALLOW_TEST_DB=1 and MYSQL_DATABASE=leinz_test_<disposable_name>. This test resets the Leinz tables in that database.');
   process.exit(2);
 }
 if (process.argv.slice(2).some(arg => arg !== '--verify-persistence')) throw Error('Unknown test argument.');
@@ -83,7 +85,7 @@ try {
   assert.match(info.version, /^5\.7\./); assert(!/mariadb/i.test(info.version));
   console.log(JSON.stringify({ databaseVersion: info.version, sqlMode: info.sqlMode, maxAllowedPacket: Number(info.maxPacket), testDatabase: config.mysql.database }));
   if (process.argv.includes('--verify-persistence')) {
-    await test('Database restart preserves committed state, history and shared SKU', async () => {
+    await test('Database restart preserves state, history, SKU and all managed master catalogs', async () => {
       await startApp();
       const [users] = await pool.execute('SELECT id FROM leinz_users WHERE username = ?', ['qaadmin']);
       assert.equal(users.length, 1);
@@ -93,6 +95,12 @@ try {
       assert.equal(history.value.length, 1); assert.equal(history.value[0].id, 'qa-saved-1');
       const skus = await store.getDocument(null, 'skus');
       assert.equal(skus.value.skus.length, 3); assert.equal(skus.value.skus[0].code, "LEINZ'57");
+      const catalogs = await store.getCatalogs();
+      assert.equal(catalogs.value.materials.products.length, 20); assert.equal(catalogs.value.materials.blanks.length, 187);
+      assert.equal(catalogs.value.materials.rules.length, 2027); assert.equal(catalogs.value.shapes.items.length, 14); assert.equal(catalogs.value.tints.items.length, 67);
+      assert.equal(catalogs.value.materials.products.find(p=>p.id==='QA:MANAGED').opticalProfile.minCenterMm,1.2);
+      assert.equal(catalogs.value.tints.items.find(t=>t.code==='QA-TINT').active,false);
+      assert.equal(state.value.optics.profile.minCenterMm,1.2);
       assert.equal((await request('/api/health')).json.databaseVersion, info.version);
     });
   } else {
@@ -102,8 +110,8 @@ try {
       for (const command of ['migrate', 'migrate', 'seed', 'seed']) {
         const result = await cli(command); assert.equal(result.code, 0, result.stderr);
       }
-      const [tables] = await pool.query('SHOW TABLES'); assert.equal(tables.length, 6);
-      const [[migration]] = await pool.query('SELECT COUNT(*) AS n FROM leinz_schema_migrations'); assert.equal(Number(migration.n), 1);
+      const [tables] = await pool.query('SHOW TABLES'); assert.equal(tables.length, 7);
+      const [[migration]] = await pool.query('SELECT COUNT(*) AS n FROM leinz_schema_migrations'); assert.equal(Number(migration.n), 2);
       const [columns] = await pool.query("SELECT DATA_TYPE AS type FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND COLUMN_NAME = 'document_json'");
       assert.equal(columns.length, 3); assert(columns.every(c => c.type === 'json'));
     });
@@ -118,7 +126,7 @@ try {
     await startApp();
     await test('Unauthenticated API and raw catalog reads are rejected', async () => {
       assert.deepEqual((await request('/api/session')).json, { authenticated: false });
-      for (const path of ['/api/bootstrap', '/api/documents/state', '/api/documents/saved', '/api/documents/skus', '/assets/materials.json', '/assets//materials.json', '/assets/%2Fmaterials.json', '/assets//tints.json']) assert.equal((await request(path)).status, 401, path);
+      for (const path of ['/api/bootstrap', '/api/catalogs', '/api/documents/state', '/api/documents/saved', '/api/documents/skus', '/assets/materials.json', '/assets//materials.json', '/assets/%2Fmaterials.json', '/assets//tints.json']) assert.equal((await request(path)).status, 401, path);
       const health = await request('/api/health'); assert.equal(health.status, 200); assert.equal(health.json.databaseVersion, info.version);
     });
     await test('Login rejects wrong passwords, injected usernames and foreign origins', async () => {
@@ -131,6 +139,15 @@ try {
       const res = await request('/api/bootstrap', admin); assert.equal(res.status, 200, res.text); bootstrap = res.json;
       assert.equal(bootstrap.catalogs.tints.items.length, 66); assert.equal(bootstrap.catalogs.shapes.items.length, 13);
       assert.equal(bootstrap.catalogs.materials.blanks.length, 186); assert.equal(bootstrap.catalogs.materials.products.length, 19);
+      assert.equal(bootstrap.catalogs.materials.rules.length, 2026);
+      assert(bootstrap.catalogs.materials.products.some(p=>p.index==='1.59'&&!p.activeForSimulator));
+      assert(Number.isInteger(bootstrap.catalogRevision));
+      for(const key of ['materials','shapes','tints']) {
+        const asset=JSON.parse(readFileSync(resolve(PROJECT_ROOT,`dist/assets/${key}.json`),'utf8'));
+        assert.equal(catalogDigest(bootstrap.catalogs[key]),catalogDigest(asset),key+' persisted content must match the complete asset catalog');
+      }
+      console.log(JSON.stringify({referenceCatalogs:{products:19,blanks:186,powerRules:2026,frameShapes:13,tinting:66,catalogOnlyIndex159Preserved:true},canonicalSha256:Object.fromEntries(['materials','shapes','tints'].map(key=>[key,catalogDigest(bootstrap.catalogs[key])]))}));
+      const current = await request('/api/catalogs',admin);assert.equal(current.status,200);assert.equal(current.json.revision,bootstrap.catalogRevision);assert.deepEqual(current.json.value,bootstrap.catalogs);
       assert.equal(bootstrap.documents.state.value, null); assert.deepEqual(bootstrap.documents.saved.value, []); assert.deepEqual(bootstrap.documents.skus.value.skus, []);
       const [[sessions]] = await pool.query('SELECT COUNT(*) AS n FROM leinz_sessions WHERE LENGTH(token_hash) = 32'); assert.equal(Number(sessions.n), 2);
       const cam = { yaw: -.62, pitch: .12, zoom: 1 };
@@ -145,6 +162,10 @@ try {
         const res = await request('/api/documents/state', { method: 'PUT', body, ...params }); assert.equal(res.status, 403, res.text);
       }
       assert.equal((await getDoc('state', admin)).revision, 0);
+      const current=(await request('/api/catalogs',admin)).json;
+      assert.equal((await request('/api/catalogs',{method:'PUT',body:{value:current.value,revision:current.revision},cookie:admin.cookie})).status,403);
+      assert.equal((await request('/api/catalogs',{method:'PUT',body:{value:current.value,revision:current.revision},...admin,headers:{Origin:'http://wrong.invalid'}})).status,403);
+      assert.equal((await request('/api/catalogs',admin)).json.revision,current.revision);
     });
     await test('State round-trip preserves frame/tint/centration settings and Unicode', async () => {
       state.a.note = 'Café 👓 / <script>not executable</script> / apostrophe: \' '; state.frameStyle = 'half-rimless'; state.showTemples = false;
@@ -188,15 +209,86 @@ try {
       for (const value of [[{ ...entry, data: { choices: 'wrong' } }], [entry, entry], Array.from({ length: 31 }, (_, i) => ({ ...entry, id: `qa-${i}` }))]) assert.equal((await putDoc('saved', value, 1, admin)).status, 422);
       assert.equal((await getDoc('saved', admin)).revision, 1);
     });
+    await test('Migration from the six-table 2.0 schema preserves existing catalogs, accounts, SKU and consultations', async () => {
+      const catalogs=(await request('/api/catalogs',admin)).json.value;
+      const before={state:await getDoc('state',admin),saved:await getDoc('saved',admin),skus:await getDoc('skus',admin)};
+      const [usersBefore]=await pool.query('SELECT id, username, password_hash, active FROM leinz_users ORDER BY id');
+      // Recreate precisely the pre-2.1 schema shape; only the newly introduced
+      // revision table and migration marker are absent in a 2.0 installation.
+      await pool.query('DROP TABLE leinz_catalog_revision');
+      await pool.execute('DELETE FROM leinz_schema_migrations WHERE version = ?', [2]);
+      const migration=await cli('migrate');assert.equal(migration.code,0,migration.stderr);
+      await seed(pool);await seed(pool);
+      for(const key of ['state','saved','skus'])assert.deepEqual(await getDoc(key,admin),before[key]);
+      assert.deepEqual((await request('/api/catalogs',admin)).json.value,catalogs);
+      const [usersAfter]=await pool.query('SELECT id, username, password_hash, active FROM leinz_users ORDER BY id');assert.deepEqual(usersAfter,usersBefore);
+      const doctor=await cli('doctor');assert.equal(doctor.code,0,doctor.stderr);const report=JSON.parse(doctor.stdout);
+      assert.equal(report.schemaVersion,2);assert.equal(report.tables,7);
+      assert.deepEqual(report.masterCounts,{products:19,blanks:186,powerRules:2026,frameShapes:13,tinting:66,skus:3});
+      for(const key of ['materials','shapes','tints'])assert.equal(report.catalogContentSha256[key],catalogDigest(catalogs[key]));
+    });
+    await test('Manage CRUD writes all catalog types atomically and a second store reads fresh MySQL data', async () => {
+      const secondStore=new MysqlStore(pool,config);await secondStore.initialize();
+      const current=(await request('/api/catalogs',admin)).json,next=clone(current.value);
+      const opticalProfile={minCenterMm:1.2,minEdgeMm:1.5,frontPowerD:4,frontCurveBasis:'material',curveReferenceIndex:1.53,frontConic:0,backConic:0,source:'lab',reference:'QA supplied parameter; not production verification'};
+      next.materials.products.push({id:'QA:MANAGED',supplier:'QA',code:'MANAGED',name:'Bahan Café 👓',index:'1.60',activeForSimulator:true,active:true,opticalProfile});
+      next.materials.blanks.push({id:'QA:MANAGED:80',productId:'QA:MANAGED',baseCurve:4,diameter:80,ct:8,et:12,active:true,opticalProfile:{...opticalProfile,frontRadiusMm:150}});
+      next.materials.rules.push({id:'qa-managed-rule',blankId:'QA:MANAGED:80',sphFrom:-10,sphTo:8,cylFrom:-6,cylTo:0,addFrom:0,addTo:4,source:'managed',sourceRows:[],exactDuplicateCount:0,hasExactDuplicates:false});
+      next.shapes.items.push({code:'qa-square',name:'QA Square',category:'additional',source:'managed',points:[[-.5,-.5],[.5,-.5],[.5,.5],[-.5,.5]],defaultWidthMm:52,defaultHeightMm:40,contourMode:'vector',active:true});
+      next.tints.items.push({code:'QA-TINT',name:'QA Blue',kind:'Gradient',group:'fashion',nominalPercent:null,previewHex:'#123456',previewMidHex:null,previewBottomHex:'#FFFFFF',referenceStatus:'manual',referenceNote:'Contoh pengguna Café 👓',active:true});
+      const write=await request('/api/catalogs',{method:'PUT',body:{value:next,revision:current.revision},...admin});assert.equal(write.status,200,write.text);assert.equal(write.json.revision,current.revision+1);
+      assert.deepEqual((await secondStore.getCatalogs()).value,next);
+      for(const key of ['materials','shapes','tints']){
+        const download=await request(`/assets/${key}.json`,admin);assert.equal(download.status,200);assert.deepEqual(download.json,next[key]);
+      }
+      const otherBootstrap=await request('/api/bootstrap',other);assert.equal(otherBootstrap.status,200);assert.deepEqual(otherBootstrap.json.catalogs,next);assert.equal(otherBootstrap.json.catalogRevision,write.json.revision);
+      const skus=await getDoc('skus',admin),updated=clone(skus.value);
+      updated.skus[0].variants.find(v=>v.index==='1.60').assignments.push({id:'qa-managed-assignment',supplier:'QA',productId:'QA:MANAGED',blankIds:['QA:MANAGED:80']});
+      const skuWrite=await putDoc('skus',updated,skus.revision,admin);assert.equal(skuWrite.status,200,skuWrite.text);
+      assert((await getDoc('skus',other)).value.skus[0].variants.find(v=>v.index==='1.60').assignments.some(a=>a.productId==='QA:MANAGED'));
+    });
+    await test('Invalid catalog edits, identity deletion, geometry and assigned-blank reassignment preserve all rows', async () => {
+      const current=(await request('/api/catalogs',admin)).json;
+      const mutations=[v=>v.materials.blanks[0].diameter=-1,v=>v.materials.products.pop(),v=>v.shapes.items[0].points=[[0,0],[.5,.5],[-.5,.5],[.5,-.5]],v=>v.tints.items[0].previewHex='invalid',v=>v.materials.blanks.find(b=>b.id==='QA:MANAGED:80').productId=v.materials.products[0].id,v=>v.materials.products.find(p=>p.id==='QA:MANAGED').opticalProfile.frontConic=-1];
+      for(const mutate of mutations){const next=clone(current.value);next.shapes.items[1].name='Must not commit';mutate(next);const res=await request('/api/catalogs',{method:'PUT',body:{value:next,revision:current.revision},...admin});assert.equal(res.status,422,res.text);assert.deepEqual((await request('/api/catalogs',admin)).json,current);}
+    });
+    await test('A database failure during the last catalog update rolls back earlier updates and revision', async () => {
+      const current=(await request('/api/catalogs',admin)).json,next=clone(current.value);next.materials.products[0].name='Must roll back';next.shapes.items[1].name='Must roll back too';
+      await pool.query("CREATE TRIGGER qa_fail_catalog_write BEFORE UPDATE ON leinz_catalog_documents FOR EACH ROW BEGIN IF NEW.document_key = 'tints' THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'QA simulated transactional failure'; END IF; END");
+      try{
+        const res=await request('/api/catalogs',{method:'PUT',body:{value:next,revision:current.revision},...admin});assert.equal(res.status,503);assert.equal(res.json.error.code,'service_unavailable');assert(!res.text.includes('QA simulated')&&!res.text.includes('UPDATE'));
+        assert.deepEqual((await request('/api/catalogs',admin)).json,current);
+      }finally{await pool.query('DROP TRIGGER qa_fail_catalog_write');}
+    });
+    await test('Concurrent master edits have one winner and stale revision returns the complete latest bundle', async () => {
+      const current=(await request('/api/catalogs',admin)).json;
+      const variants=['A','B'].map(suffix=>{const value=clone(current.value);value.materials.products.find(p=>p.id==='QA:MANAGED').name='QA concurrent '+suffix;return value;});
+      const results=await Promise.all(variants.map(value=>request('/api/catalogs',{method:'PUT',body:{value,revision:current.revision},...admin})));
+      assert.deepEqual(results.map(r=>r.status).sort(),[200,409]);const latest=(await request('/api/catalogs',admin)).json;assert.equal(latest.revision,current.revision+1);
+      assert.deepEqual(results.find(r=>r.status===409).json.document,latest);
+    });
+    await test('Archives remain referenced, reseeding preserves managed edits and finished optical settings persist', async () => {
+      const current=(await request('/api/catalogs',admin)).json,next=clone(current.value);
+      next.materials.products.find(p=>p.id==='QA:MANAGED').active=false;next.materials.blanks.find(b=>b.id==='QA:MANAGED:80').active=false;
+      next.shapes.items.find(s=>s.code==='qa-square').active=false;next.tints.items.find(t=>t.code==='QA-TINT').active=false;
+      const written=await request('/api/catalogs',{method:'PUT',body:{value:next,revision:current.revision},...admin});assert.equal(written.status,200,written.text);
+      await seed(pool);await seed(pool);assert.deepEqual((await request('/api/catalogs',admin)).json,written.json);
+      state.optics={useOverride:true,profile:{minCenterMm:1.2,minEdgeMm:1.5,frontPowerD:4,frontCurveBasis:'material',frontConic:0,backConic:0,source:'assumption',reference:'QA override'}};
+      const stateDoc=await getDoc('state',admin);const saved=await putDoc('state',state,stateDoc.revision,admin);assert.equal(saved.status,200,saved.text);
+      assert.deepEqual((await getDoc('state',admin)).value.optics,state.optics);
+      for(const profile of [{minCenterMm:.1},{frontConic:-1},{source:'lab',reference:''}])assert.equal((await putDoc('state',{...state,optics:{useOverride:true,profile}},saved.json.revision,admin)).status,422);
+      const refreshed=new MysqlStore(pool,config);await refreshed.initialize();assert.equal((await refreshed.getCatalogs()).value.materials.products.find(p=>p.id==='QA:MANAGED').active,false);
+    });
     await test('Malformed JSON, invalid state/revision, prototype keys and oversize bodies fail safely', async () => {
       assert.equal((await request('/api/documents/state', { method: 'PUT', rawBody: '{', ...admin })).status, 400);
       assert.equal((await request('/api/documents/state', { method: 'PUT', rawBody: '[]', ...admin })).status, 400);
       assert.equal((await request('/api/documents/state', { method: 'PUT', body: {}, ...admin, headers: { 'Content-Type': 'text/plain' } })).status, 415);
+      const revision=(await getDoc('state',admin)).revision;
       assert.equal((await request('/api/documents/state', { method: 'PUT', rawBody: '{"value":null,"revision":2,"__proto__":{"polluted":true}}', ...admin })).status, 422);
-      assert.equal((await putDoc('state', { ...state, width: 500 }, 2, admin)).status, 422);
+      assert.equal((await putDoc('state', { ...state, width: 500 }, revision, admin)).status, 422);
       assert.equal((await putDoc('state', state, '2', admin)).status, 422);
       assert.equal((await request('/api/documents/state', { method: 'PUT', body: { value: 'x'.repeat(8 * 1024 * 1024 + 1), revision: 2 }, ...admin })).status, 413);
-      assert.equal((await getDoc('state', admin)).revision, 2);
+      assert.equal((await getDoc('state', admin)).revision, revision);
     });
     await test('Static server exposes UI only; source, secrets and traversal are blocked', async () => {
       const page = await request('/'); assert.equal(page.status, 200); assert.match(page.headers['content-type'], /text\/html/);
@@ -210,17 +302,19 @@ try {
       const head = await request('/index.html', { method: 'HEAD' }); assert.equal(head.status, 200); assert.equal(head.text, '');
     });
     await test('Migration/seed reruns preserve user documents and SKU revisions', async () => {
-      const before = { state: await getDoc('state', admin), saved: await getDoc('saved', admin), skus: await getDoc('skus', admin) };
+      const before = { state: await getDoc('state', admin), saved: await getDoc('saved', admin), skus: await getDoc('skus', admin) }, catalogs=(await request('/api/catalogs',admin)).json;
       await migrate(pool); await seed(pool); await seed(pool);
       for (const key of ['state', 'saved', 'skus']) assert.deepEqual(await getDoc(key, admin), before[key]);
+      assert.deepEqual((await request('/api/catalogs',admin)).json,catalogs);
     });
     await test('Application restart loads committed state/history/SKU and existing sessions', async () => {
       state.a.note = 'QA restart marker 👓';
-      const write = await putDoc('state', state, 2, admin); assert.equal(write.status, 200, write.text);
+      const write = await putDoc('state', state, (await getDoc('state',admin)).revision, admin); assert.equal(write.status, 200, write.text);
       await stopApp(); await pool.end(); pool = createPool(config); await startApp();
       assert.equal((await getDoc('state', admin)).value.a.note, 'QA restart marker 👓');
       assert.equal((await getDoc('saved', admin)).value.length, 1);
       assert.equal((await getDoc('skus', other)).value.skus.length, 3);
+      assert.equal((await request('/api/catalogs',admin)).json.value.materials.products.length,20);
     });
     await test('Expired and logged-out sessions cannot access or mutate data', async () => {
       await pool.execute('UPDATE leinz_sessions SET expires_at = DATE_SUB(UTC_TIMESTAMP(), INTERVAL 1 HOUR) WHERE user_id = ?', [other.user.id]);
@@ -233,6 +327,7 @@ try {
       await pool.end();
       const res = await request('/api/health'); assert.equal(res.status, 503); assert.equal(res.json.error.code, 'service_unavailable');
       assert(!res.text.includes(config.mysql.password) && !res.text.includes('SELECT') && !res.text.includes(PROJECT_ROOT));
+      const write=await request('/api/catalogs',{method:'PUT',body:{value:{},revision:0},...admin});assert.equal(write.status,503);assert.equal(write.json.error.code,'service_unavailable');assert(!write.json.value);
     });
     console.log('Persistent test data retained only in the explicitly named disposable database for --verify-persistence after a database restart.');
   }

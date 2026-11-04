@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { parseEnv } from 'node:util';
 
 export const PROJECT_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-export const APP_VERSION = '2.0.0';
+export const APP_VERSION = '2.1.1';
 
 function integer(value, fallback, min, max, name) {
   const text = value === undefined || value === '' ? String(fallback) : String(value);

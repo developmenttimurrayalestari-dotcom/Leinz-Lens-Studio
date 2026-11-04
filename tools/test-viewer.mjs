@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 
 const source = fs.readFileSync(new URL('../dist/lens-viewer.js', import.meta.url), 'utf8');
+const opticsSource = fs.readFileSync(new URL('../dist/lens-optics.js', import.meta.url), 'utf8');
 let drawCalls = 0;
 const recordedGradients = [];
 const recordedLabels = [], recordedShadows = [];
@@ -42,6 +43,7 @@ function canvas() {
   };
 }
 const sandbox = { module: { exports: {} } };
+vm.runInNewContext(opticsSource, sandbox);
 vm.runInNewContext(source, sandbox);
 const LensViewer = sandbox.module.exports;
 const meshMinimum = mesh => {
@@ -84,11 +86,11 @@ assert.ok(drawCalls > 100, 'The render exercise should draw the surface and visi
 // A distinct PDF midpoint must not be replaced by the average of top/bottom.
 recordedGradients.length = 0;
 v.setOptions({ colorHex: '#0000FF', midColorHex: '#FF0000', bottomColorHex: '#00FF00', kind: 'Gradient', camera: { yaw: -0.6, pitch: .1 } });
-const threeStopSurface = recordedGradients.find(stops => stops.length === 3 && stops[0][1] === 'rgba(0,0,255,1)' && stops[1][0] === .5 && stops[1][1] === 'rgba(255,0,0,1)' && stops[2][1] === 'rgba(0,255,0,1)');
+const threeStopSurface = recordedGradients.find(stops => stops.length === 3 && stops[0][1] === 'rgba(0,0,255,0.86)' && stops[1][0] === .5 && stops[1][1] === 'rgba(255,0,0,0.86)' && stops[2][1] === 'rgba(0,255,0,0.86)');
 assert.ok(threeStopSurface, 'The continuous surface must preserve all three supplied display colors.');
 recordedGradients.length = 0;
 v.setOptions({ midColorHex: null });
-assert.ok(recordedGradients.some(stops => stops.length === 2 && stops[0][1] === 'rgba(0,0,255,1)' && stops[1][1] === 'rgba(0,255,0,1)'), 'Absent midpoint must retain a two-stop gradient.');
+assert.ok(recordedGradients.some(stops => stops.length === 2 && stops[0][1] === 'rgba(0,0,255,0.86)' && stops[1][1] === 'rgba(0,255,0,0.86)'), 'Absent midpoint must retain a two-stop gradient.');
 assert.ok(!recordedGradients.some(stops => stops.some(([position]) => position === .5)), 'A cleared midpoint must not persist in later previews.');
 assert.ok(v.toDataURL().startsWith('data:image/png'));
 v.destroy();
@@ -426,7 +428,7 @@ for (const view of ['front', 'perspective', 'back', 'side']) {
 }
 recordedGradients.length = 0;
 wearerPair.setView('front');
-assert.ok(recordedGradients.some(stops => stops.length === 3 && stops[0][1] === 'rgba(0,0,255,1)' && stops[1][1] === 'rgba(255,0,0,1)' && stops[2][1] === 'rgba(0,255,0,1)'), 'Reversing the eye layout must retain the actual three-stop surface tint.');
+assert.ok(recordedGradients.some(stops => stops.length === 3 && stops[0][1] === 'rgba(0,0,255,0.86)' && stops[1][1] === 'rgba(255,0,0,0.86)' && stops[2][1] === 'rgba(0,255,0,0.86)'), 'Reversing the eye layout must retain the actual three-stop surface tint.');
 const screenCenter = viewer => viewer._transformation(viewer.mesh, -35).project(viewer.mesh.vertices[0]);
 for (const input of ['keyboard', 'drag']) {
   const moves = [];
@@ -456,11 +458,17 @@ const decentered = new LensViewer(canvas(), {
   pairMode: true, shapePoints: shapes[2].points, widthMm: 52, heightMm: 38,
   sph: -6, cyl: 0, index: 1.60, kind: 'Gradient', colorHex: '#305060', bottomColorHex: '#e5eded'
 });
+const exactMinusSphere = (x, y) => {
+  const center = 1.5, index = 1.6, frontPower = 4, power = -6;
+  const rf = 1000 * (index - 1) / frontPower;
+  const rb = 1000 * (index - 1) / (frontPower / (1 - center * frontPower / (1000 * index)) - power);
+  return center + rb - Math.sqrt(rb * rb - x * x - y * y) - rf + Math.sqrt(rf * rf - x * x - y * y);
+};
 const centeredMeshes = [decentered.mesh, decentered.leftMesh];
 decentered.setOptions({ opticalCenters: { R: { x: 0, y: 0 }, L: { x: 0, y: 0 } } });
 for (const [eye, mesh] of [decentered.mesh, decentered.leftMesh].entries()) {
   assert.deepEqual(mesh.vertices, centeredMeshes[eye].vertices, 'Explicit zero optical centers must preserve the centered mesh.');
-  close(mesh.thickness(10, 5), 2.125, 'The centered minus-power model must preserve its previous thickness profile.');
+  close(mesh.thickness(10, 5), exactMinusSphere(10, 5), 'The centered minus-power model uses exact spherical sag and back-vertex power.');
 }
 const offsets = { R: { x: 5, y: 3 }, L: { x: -7, y: -2 } };
 decentered.setOptions({ opticalCenters: offsets });
@@ -469,7 +477,7 @@ for (const [eye, mesh] of [decentered.mesh, decentered.leftMesh].entries()) {
   close(mesh.opticalCenter.x, oc.x, 'Each eye must keep its independently signed horizontal offset.');
   close(mesh.opticalCenter.y, -oc.y, 'External y-down optical center must convert to local y-up exactly once.');
   close(mesh.thickness(oc.x, -oc.y), 1.5, 'The illustrative minus-lens minimum must follow its optical center.');
-  close(mesh.thickness(oc.x + 10, -oc.y), 2, 'A fixed distance from either optical center must preserve the same Rx field.');
+  close(mesh.thickness(oc.x + 10, -oc.y), exactMinusSphere(10, 0), 'A fixed distance from either optical center must preserve the same Rx field.');
   assert.ok(mesh.front(oc.x, -oc.y) > mesh.front(oc.x + 10, -oc.y), 'Front curvature must move with the optical field.');
   assert.ok(Math.abs(mesh.thickness(-20, 0) - centeredMeshes[eye].thickness(-20, 0)) > .1, 'Decentration must visibly change the edge thickness profile.');
   assert.ok(meshMinimum(mesh) >= 1.49, 'Both eyes must retain the illustrative minimum thickness.');
@@ -531,7 +539,9 @@ const measured = new LensViewer(canvas(), {
 });
 let metrics = measured.getThicknessMetrics();
 assert.equal(metrics.unit, 'mm');
-assert.equal(metrics.source, 'illustrative-renderer-model');
+assert.equal(metrics.source, 'spherical-toric-sag-model');
+assert.equal(metrics.model, 'spherical-toric-sag-v1');
+assert.equal(metrics.valid, true);
 assert.equal(metrics.productionVerified, false);
 assert.equal(metrics.minimumThicknessAssumptionMm, 1.5);
 assert.equal(metrics.pair.eyeCount, 2);
@@ -563,10 +573,15 @@ for (const index of indices) {
 }
 measured.setOptions({ sph: 0, cyl: 0 });
 metrics = measured.getThicknessMetrics();
-for (const value of [metrics.pair.centerMinMm, metrics.pair.centerMaxMm, metrics.pair.edgeMinMm, metrics.pair.edgeMaxMm, metrics.pair.minMm, metrics.pair.maxMm]) close(value, 1.5, 'Plano thickness must remain the same throughout the model.');
+close(metrics.pair.centerMinMm, 1.5, 'The zero-power meniscus retains its configured CT.');
+assert.ok(metrics.pair.edgeMaxMm > 1.5, 'Back-vertex correction gives a curved zero-power lens a slightly different rear radius.');
+measured.setOptions({ opticalProfile: { frontPowerD: 0 } });
+metrics = measured.getThicknessMetrics();
+for (const value of [metrics.pair.centerMinMm, metrics.pair.centerMaxMm, metrics.pair.edgeMinMm, metrics.pair.edgeMaxMm, metrics.pair.minMm, metrics.pair.maxMm]) close(value, 1.5, 'A plano parallel plate has uniform thickness.');
+measured.setOptions({ opticalProfile: null });
 
 // An optical center outside the edged shape is not a physical CT location.
-measured.setOptions({ sph: -4, opticalCenters: { R: { x: 100, y: 0 }, L: { x: 0, y: 0 } } });
+measured.setOptions({ sph: -4, opticalCenters: { R: { x: 40, y: 0 }, L: { x: 0, y: 0 } } });
 metrics = measured.getThicknessMetrics();
 assert.equal(metrics.eyes.R.opticalCenterInside, false);
 assert.equal(metrics.eyes.R.centerThicknessMm, null);
@@ -608,6 +623,37 @@ metrics = measured.getThicknessMetrics();
 assert.equal(metrics.pair.eyeCount, 1);
 assert.equal(metrics.eyes.L, null);
 measured.destroy();
+
+// Per-eye manufacturing assumptions drive both the surface and the numeric CT.
+// A bad profile must not fall back to plausible-looking thickness numbers.
+const profiled = new LensViewer(canvas(), {
+  pairMode: true, eyeLayout: 'wearer', showMeasurements: true,
+  shapePoints: shapes[0].points, sph: -4, cyl: 0, index: 1.60,
+  opticalProfiles: {
+    R: { minCenterMm: 1.2, frontRadiusMm: 150, source: 'lab', reference: 'QA curve fixture' },
+    L: { minCenterMm: 1.8, frontRadiusMm: 150 }
+  }
+});
+let profileMetrics = profiled.getThicknessMetrics();
+close(profileMetrics.eyes.R.centerThicknessMm, 1.2, 'R uses its assigned finished CT, not the legacy global minimum.');
+close(profileMetrics.eyes.L.centerThicknessMm, 1.8, 'L retains its independent profile.');
+assert.equal(profileMetrics.opticalProfiles.R.profile.reference, 'QA curve fixture');
+assert.equal(profileMetrics.productionVerified, false, 'A user-entered lab reference is not a validation result.');
+assert.equal(profileMetrics.calibrationStatus, 'unverified');
+assert.equal(profiled._measurementAnnotations.filter(x => x.kind === 'center').length, 2);
+const originalProfileContour = JSON.stringify(profiled.mesh.contour);
+profiled.setOptions({ opticalProfiles: { R: { minCenterMm: 1.4 }, L: { minCenterMm: 1.8 } } });
+close(profiled.getThicknessMetrics().eyes.R.centerThicknessMm, 1.4);
+assert.equal(JSON.stringify(profiled.mesh.contour), originalProfileContour, 'Thickness overrides cannot alter the frame outline.');
+profiled.setOptions({ opticalProfiles: { R: { frontConic: -1 }, L: { minCenterMm: 1.8 } } });
+profileMetrics = profiled.getThicknessMetrics();
+assert.equal(profileMetrics.valid, false);
+assert.equal(profileMetrics.pair, null);
+assert.equal(profileMetrics.eyes.R, null);
+assert.ok(profileMetrics.errors.some(error => error.includes('asferik')));
+assert.equal(profiled._measurementAnnotations.length, 3, 'Only frame dimensions survive an invalid optical model.');
+profiled.mesh.vertices.forEach(p => numeric(p.x, p.y, p.z, p.g));
+profiled.destroy();
 
 // Measurement labels stay attached to each pair's viewport while numeric values
 // retain true mm under camera rotations. The leader must identify the thickest
@@ -677,12 +723,15 @@ for (const size of [{ width: 440, height: 310 }, { width: 320, height: 290 }]) {
   for (const center of differentCenters) close(center.anchor.thicknessMm,
     annotated.getThicknessMetrics().eyes[center.anchor.eye].centerThicknessMm,
     'Each CT label must agree with the per-eye metric rather than a pair aggregate.');
-  annotated.setOptions({ opticalCenters: { R: { x: 100, y: 0 }, L: { x: -9, y: -3 } } });
+  annotated.setOptions({ opticalCenters: { R: { x: 40, y: 0 }, L: { x: -9, y: -3 } } });
   const availableCenters = annotated._measurementAnnotations.filter(x => x.kind === 'center');
   assert.equal(availableCenters.length, 1, 'An OC outside the cut outline must not receive a numeric CT annotation.');
   assert.equal(availableCenters[0].anchor.eye, 'L');
   annotated.setOptions({ opticalCenters: { R: { x: 6.5, y: 1 }, L: { x: -6.5, y: 1 } } });
   annotated.setOptions({ sph: -20, cyl: -7, index: 1.50, camera: { yaw: Math.PI / 2, pitch: 0 } });
+  assert.equal(annotated.getThicknessMetrics().valid, false, 'Impossible spherical/toric geometry must be reported instead of numerically flattened.');
+  assert.equal(annotated.getThicknessMetrics().pair, null);
+  assert.ok(!annotated._measurementAnnotations.some(x => x.kind === 'thickness' || x.kind === 'center'), 'A placeholder cannot display fabricated CT/ET.');
   assert.equal(annotated._measurementAnnotations.find(x => x.kind === 'width').guideMode, 'leader',
     'Even a thick side silhouette must not become a false A dimension.');
   annotated.setOptions({ camera: { yaw: 0, pitch: Math.PI / 2 } });
@@ -925,6 +974,7 @@ const animatedSandbox = {
   requestAnimationFrame(fn) { queued.set(++frameId, fn); return frameId; },
   cancelAnimationFrame(id) { queued.delete(id); }
 };
+vm.runInNewContext(opticsSource, animatedSandbox);
 vm.runInNewContext(source, animatedSandbox);
 const advance = timestamp => { const frame = [...queued.values()]; queued.clear(); frame.forEach(fn => fn(timestamp)); };
 const rotationEvents = [];

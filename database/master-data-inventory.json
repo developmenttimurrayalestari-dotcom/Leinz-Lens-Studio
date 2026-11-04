@@ -1,0 +1,266 @@
+{
+  "schema": "leinz-database-package-inventory/1.0",
+  "applicationVersion": "2.1.1",
+  "targetDatabase": "MySQL 5.7.24",
+  "dataScope": "Complete packaged reference catalogs; not an export of an operational database or browser-local edits.",
+  "counts": {
+    "suppliers": 2,
+    "products": 19,
+    "blanks": 186,
+    "powerRules": 2026,
+    "frameShapes": 13,
+    "tinting": 66,
+    "skus": 0
+  },
+  "skuNote": "No complete Master SKU export was supplied. The empty SKU catalog matches server seed. CREA2 shown in a screenshot is not a complete definition of its supplier/blank assignments and power ranges.",
+  "supplierBreakdown": [
+    {
+      "supplier": "DMO",
+      "products": 5,
+      "blanks": 45,
+      "powerRules": 521,
+      "diametersMm": [
+        65,
+        70,
+        75
+      ]
+    },
+    {
+      "supplier": "SOA",
+      "products": 14,
+      "blanks": 141,
+      "powerRules": 1505,
+      "diametersMm": [
+        65,
+        69,
+        70,
+        72,
+        74,
+        75,
+        76,
+        80
+      ]
+    }
+  ],
+  "indexBreakdown": [
+    {
+      "index": "1.50",
+      "products": 2,
+      "blanks": 12,
+      "powerRules": 157,
+      "diametersMm": [
+        70,
+        72,
+        76,
+        80
+      ]
+    },
+    {
+      "index": "1.56",
+      "products": 2,
+      "blanks": 14,
+      "powerRules": 71,
+      "diametersMm": [
+        70,
+        75,
+        80
+      ]
+    },
+    {
+      "index": "1.57",
+      "products": 3,
+      "blanks": 25,
+      "powerRules": 272,
+      "diametersMm": [
+        75
+      ]
+    },
+    {
+      "index": "1.59",
+      "products": 1,
+      "blanks": 15,
+      "powerRules": 120,
+      "diametersMm": [
+        76,
+        80
+      ]
+    },
+    {
+      "index": "1.60",
+      "products": 3,
+      "blanks": 40,
+      "powerRules": 641,
+      "diametersMm": [
+        70,
+        72,
+        75
+      ]
+    },
+    {
+      "index": "1.67",
+      "products": 3,
+      "blanks": 34,
+      "powerRules": 291,
+      "diametersMm": [
+        70,
+        75
+      ]
+    },
+    {
+      "index": "1.74",
+      "products": 5,
+      "blanks": 46,
+      "powerRules": 474,
+      "diametersMm": [
+        65,
+        69,
+        70,
+        74,
+        75,
+        80
+      ]
+    }
+  ],
+  "simulatorIndices": [
+    "1.50",
+    "1.56",
+    "1.57",
+    "1.60",
+    "1.67",
+    "1.74"
+  ],
+  "catalogOnlyIndices": [
+    "1.59"
+  ],
+  "shapes": [
+    {
+      "code": "001",
+      "name": "Shape 001",
+      "contourPointCount": 80
+    },
+    {
+      "code": "002",
+      "name": "Shape 002",
+      "contourPointCount": 80
+    },
+    {
+      "code": "003",
+      "name": "Shape 003",
+      "contourPointCount": 80
+    },
+    {
+      "code": "004",
+      "name": "Shape 004",
+      "contourPointCount": 80
+    },
+    {
+      "code": "005",
+      "name": "Shape 005",
+      "contourPointCount": 80
+    },
+    {
+      "code": "006",
+      "name": "Shape 006",
+      "contourPointCount": 80
+    },
+    {
+      "code": "007",
+      "name": "Shape 007",
+      "contourPointCount": 80
+    },
+    {
+      "code": "008",
+      "name": "Shape 008",
+      "contourPointCount": 80
+    },
+    {
+      "code": "009",
+      "name": "Shape 009",
+      "contourPointCount": 80
+    },
+    {
+      "code": "round",
+      "name": "Rounded / Bulat",
+      "contourPointCount": 256
+    },
+    {
+      "code": "cat-eye",
+      "name": "Cat-eye",
+      "contourPointCount": 256
+    },
+    {
+      "code": "rectangle",
+      "name": "Rectangle",
+      "contourPointCount": 256
+    },
+    {
+      "code": "square",
+      "name": "Square",
+      "contourPointCount": 256
+    }
+  ],
+  "tintKinds": {
+    "Gradient": 20,
+    "Solid": 46
+  },
+  "sourceRows": {
+    "declaredRows": 2689,
+    "preservedRowReferences": 2689,
+    "uniqueReferencedRows": 2689,
+    "exactDuplicateExtraRows": 663
+  },
+  "sourceAssets": {
+    "materials": {
+      "path": "dist/assets/materials.json",
+      "fileSha256": "031ed75a3a52324a2675b618f9a1e0eba311c0b3dde2747482d26a20532e712d",
+      "canonicalSha256": "c0efc3b8b9535b38fb0a48760521275ff159d26af802bf8d21c185ad42fea456",
+      "compactJsonUtf8Bytes": 460095
+    },
+    "shapes": {
+      "path": "dist/assets/shapes.json",
+      "fileSha256": "70ddece1588bb5b8141fa48ca88d7f55e2d0c3095d71bfa8c374f1e030ac424f",
+      "canonicalSha256": "6f2257c279bb0fe691d0deda99c1255b0171c1653134d254b88098ed721822a6",
+      "compactJsonUtf8Bytes": 49925
+    },
+    "tints": {
+      "path": "dist/assets/tints.json",
+      "fileSha256": "29fa33e53834078526be45982417371fb441b046e605f2df855ce8cf38a07465",
+      "canonicalSha256": "ed19014abcb814dc9e723324ad1ebb8a385a26fb80bddbf0176c3fbd91700a65",
+      "compactJsonUtf8Bytes": 50616
+    }
+  },
+  "tables": [
+    "leinz_schema_migrations",
+    "leinz_users",
+    "leinz_sessions",
+    "leinz_catalog_documents",
+    "leinz_catalog_revision",
+    "leinz_workspace_documents",
+    "leinz_user_documents"
+  ],
+  "schemaVersion": 2,
+  "expectedFreshInstallation": {
+    "schemaMigrationRows": 2,
+    "catalogDocumentRows": 3,
+    "catalogRevision": 1,
+    "skuDocumentRows": 1,
+    "skuItems": 0,
+    "applicationUsers": 0,
+    "sessions": 0,
+    "userDocuments": 0
+  },
+  "sqlFiles": {
+    "leinz-schema.sql": {
+      "bytes": 3644,
+      "sha256": "f494683db34cbaa88e85d7557a2da3cdfe84182a71be1f665fce1f43444bfd4e"
+    },
+    "leinz-master-data.sql": {
+      "bytes": 1124147,
+      "sha256": "e19091f3cfa9e5dbbe12392becfecec54ccc86464fd697a95c65bb2ad358924b"
+    },
+    "leinz-schema-and-master-data.sql": {
+      "bytes": 1127394,
+      "sha256": "14e9e52db3fd26b77686bd954c7ed4946f7325d08dde3c79d98d5f304e60e557"
+    }
+  }
+}

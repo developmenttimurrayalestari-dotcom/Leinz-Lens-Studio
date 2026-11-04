@@ -1,6 +1,14 @@
-# Instalasi Leinz Lens Studio 2.0.0 — MySQL 5.7.24
+# Instalasi Leinz Lens Studio 2.1.1 — MySQL 5.7.24
 
-Panduan ini untuk paket **Leinz-Lens-Studio-2.0.0-MySQL57.zip**. Folder utama di dalam ZIP adalah `leinz-lens-studio`. Jalankan perintah aplikasi dari folder yang memuat `package.json`, `server/`, `dist/`, dan `database/`.
+Panduan ini untuk paket **Leinz-Lens-Studio-2.1.1-Full-Source-Database.zip**. Folder utama di dalam ZIP adalah `leinz-lens-studio`. Jalankan perintah aplikasi dari folder yang memuat `package.json`, `server/`, `dist/`, dan `database/`.
+
+Untuk langkah singkat, buka [MULAI_DI_SINI.md](../MULAI_DI_SINI.md). Paket
+menyertakan berkas SQL lengkap
+[`database/leinz-schema-and-master-data.sql`](../database/leinz-schema-and-master-data.sql).
+[Panduan impor database](DATABASE_IMPORT.md) menjelaskan jalur impor manual;
+jalur CLI `db:migrate` dan `db:seed` dijelaskan di bagian 5. Pilih salah satu jalur
+untuk instalasi awal. Akun database dan akun aplikasi dibuat sendiri; paket tidak
+menyertakan username/password siap pakai.
 
 Versi ini menjalankan frontend dan API melalui **Node.js**, lalu menyimpan data pada **MySQL**. Aplikasi tidak memerlukan PHP, Composer, Python, bundler frontend, atau compiler C/C++. `npm run build` memeriksa sintaks JavaScript, aset, dan katalog; tidak menghasilkan binary native.
 
@@ -89,7 +97,7 @@ Ukuran dokumen JSON MySQL dipengaruhi `max_allowed_packet`; paket ini memeriksan
 Sesuaikan lokasi ZIP dengan folder unduhan sebenarnya. Contoh folder aplikasi:
 
 ```powershell
-Expand-Archive -Path "$env:USERPROFILE\Downloads\Leinz-Lens-Studio-2.0.0-MySQL57.zip" -DestinationPath "C:\Apps"
+Expand-Archive -Path "$env:USERPROFILE\Downloads\Leinz-Lens-Studio-2.1.1-Full-Source-Database.zip" -DestinationPath "C:\Apps"
 Set-Location "C:\Apps\leinz-lens-studio"
 Copy-Item .env.example .env
 npm.cmd ci
@@ -103,7 +111,7 @@ notepad.exe .env
 Contoh berikut memakai folder `/opt/leinz-lens-studio`. Siapkan hak tulis folder sesuai akun instalasi dan jalankan npm sebagai akun tersebut.
 
 ```bash
-sudo unzip Leinz-Lens-Studio-2.0.0-MySQL57.zip -d /opt
+sudo unzip Leinz-Lens-Studio-2.1.1-Full-Source-Database.zip -d /opt
 sudo chown -R "$(id -u):$(id -g)" /opt/leinz-lens-studio
 cd /opt/leinz-lens-studio
 cp .env.example .env
@@ -157,11 +165,37 @@ Untuk akses langsung dari LAN, gunakan `HOST=0.0.0.0` dan `APP_URL=http://ALAMAT
 
 ## 5. Buat tabel, isi katalog, dan buat akun
 
-Jalankan berurutan dari folder aplikasi. Pada Windows, ganti `npm` dengan `npm.cmd` bila diperlukan:
+### Pilih satu jalur pengisian database
+
+**Jalur A — otomatis melalui CLI aplikasi.** Setelah database, akun MySQL, dan
+`.env` siap, jalankan dari folder aplikasi. Pada Windows, ganti `npm` dengan
+`npm.cmd` bila diperlukan:
 
 ```bash
 npm run db:migrate
 npm run db:seed
+```
+
+`db:migrate` membuat tujuh tabel Leinz dan catatan versi skema. `db:seed` mengisi
+tiga katalog sumber yang belum tersedia: tint, raw material, dan shape. Katalog
+yang sudah diubah melalui Manage, Master SKU, dan konsultasi dipertahankan.
+
+**Jalur B — impor SQL manual.** Untuk database baru, impor
+`database/leinz-schema-and-master-data.sql` mengikuti
+[panduan DATABASE_IMPORT.md](DATABASE_IMPORT.md). Pilih database target melalui
+client sebelum impor. Berkas ini menyediakan skema dan master sumber, sehingga
+`db:migrate` serta `db:seed` tidak diperlukan lagi untuk instalasi awal yang sudah
+berhasil diimpor. Untuk pembaruan database lama, ikuti bagian 8 panduan ini.
+
+Kedua jalur memakai data sumber yang sama: 19 produk material, 186 blank,
+2.026 aturan power, 13 frame shape, 66 tinting, dan Master SKU kosong. Tidak ada
+akun login aplikasi yang dibuat oleh kedua jalur tersebut.
+
+### Buat akun aplikasi dan mulai server
+
+Setelah salah satu jalur selesai, lanjutkan:
+
+```bash
 npm run admin:create
 npm run doctor
 npm start
@@ -169,17 +203,32 @@ npm start
 
 Hasil yang diharapkan:
 
-1. **`db:migrate`** membuat enam tabel Leinz dan catatan versi skema. Tidak memakai `DROP TABLE`.
-2. **`db:seed`** mengisi tiga katalog referensi dari paket: tint, raw material, dan shape. Master SKU serta konsultasi yang sudah ada dipertahankan.
-3. **`admin:create`** meminta username dan password baru. Username memakai 3–64 karakter huruf/angka/titik/underscore/tanda minus. Password 8–128 karakter, tidak ditampilkan saat diketik, dan diminta dua kali. Tidak tersedia password default.
-4. **`doctor`** menghasilkan laporan `ok: true`, versi MySQL, enam tabel, tiga katalog, dan jumlah akun aktif.
-5. **`npm start`** menampilkan alamat aplikasi dan mempertahankan proses server tetap berjalan.
+1. **`admin:create`** meminta username dan password baru. Username memakai 3–64
+   karakter huruf/angka/titik/underscore/tanda minus. Password **8–128 karakter**,
+   tidak ditampilkan saat diketik, dan diminta dua kali. Tidak tersedia password
+   default. Gunakan akun yang sudah ada ketika memperbarui instalasi lama.
+2. **`doctor`** menghasilkan laporan `ok: true`, versi MySQL, schemaVersion 2,
+   tujuh tabel, tiga katalog, revisi master, jumlah tiap master, hash isi katalog,
+   dan jumlah akun aktif.
+3. **`npm start`** menampilkan alamat aplikasi dan mempertahankan proses server
+   tetap berjalan.
 
-Buka alamat pada `APP_URL`, masuk dengan akun yang dibuat, lalu pastikan status penyimpanan pada antarmuka menampilkan **MySQL**. Master SKU yang masih kosong pada instalasi baru adalah kondisi normal; katalog bahan, tint, dan bentuk lensa telah diisi oleh seed.
+Buka alamat pada `APP_URL`, masuk dengan akun yang dibuat, lalu pastikan status
+penyimpanan pada antarmuka menampilkan **MySQL**. Protokol, hostname/IP, dan port
+pada browser harus sama dengan `APP_URL`; misalnya `localhost` tidak sama dengan
+`127.0.0.1` dalam pemeriksaan origin. Master SKU yang masih kosong pada instalasi
+baru adalah kondisi normal. Katalog bahan, tint, dan bentuk lensa telah diisi
+melalui jalur yang dipilih.
 
-Menutup terminal akan menghentikan server jika belum dipasang sebagai layanan. Gunakan `Ctrl+C` untuk menghentikan proses saat pengujian. Setelah perubahan `.env`, mulai ulang proses Node.js.
+Menutup terminal akan menghentikan server jika belum dipasang sebagai layanan.
+Gunakan `Ctrl+C` untuk menghentikan proses saat pengujian. Setelah perubahan
+`.env`, mulai ulang proses Node.js.
 
-Nama perintah `admin:create` adalah nama alat instalasi akun. Paket ini belum mempunyai pembagian role administrator/manager/staff: **semua akun yang dibuat dapat mengubah Master SKU bersama**. Buat akun hanya untuk pengguna yang memang diberi wewenang tersebut. Akun database MySQL dan akun login aplikasi adalah dua hal yang berbeda.
+Nama perintah `admin:create` adalah nama alat instalasi akun. Paket ini belum
+mempunyai pembagian role administrator/manager/staff: **semua akun yang dibuat
+dapat mengubah master material, frame shape, tinting, dan Master SKU bersama**.
+Buat akun hanya untuk pengguna yang memang diberi wewenang tersebut. Akun
+database MySQL dan akun login aplikasi adalah dua hal yang berbeda.
 
 ## 6. Penyimpanan data dan pemindahan data browser
 
@@ -188,24 +237,98 @@ Nama perintah `admin:create` adalah nama alat instalasi akun. Paket ini belum me
 | `leinz_schema_migrations` | Versi skema yang telah diterapkan. |
 | `leinz_users` | Username dan hash password akun aplikasi. |
 | `leinz_sessions` | Hash token sesi, token CSRF, dan masa berlaku. |
-| `leinz_catalog_documents` | Katalog tint, material/blank/power, dan kontur shape. |
+| `leinz_catalog_documents` | Katalog tint, material/blank/power, kontur shape, dan parameter optik eksplisit. |
+| `leinz_catalog_revision` | Satu revisi bersama untuk penyimpanan atomik ketiga katalog. |
 | `leinz_workspace_documents` | Master SKU bersama beserta nomor revisi. |
 | `leinz_user_documents` | Draft simulator dan riwayat konsultasi masing-masing akun. |
 
 Katalog dan dokumen aplikasi sengaja disimpan dalam kolom **JSON native MySQL**, sehingga struktur kontur, sumber data, assignment blank, rentang power, dan snapshot konsultasi tetap utuh. Ini bukan model dengan satu tabel terpisah untuk setiap varian atau titik kontur. Validasi aturan SKU dilakukan pada aplikasi dan server; tidak mengandalkan `CHECK` MySQL 5.7. Tidak ada default non-null pada kolom JSON atau collation khusus MySQL 8 dalam skema.
 
-Master SKU dibagikan kepada seluruh akun pada database yang sama. Draft dan riwayat konsultasi mengikuti akun login, dengan maksimum 30 entri riwayat. Master dibatasi 1.000 SKU. Perubahan dari sesi lain ditolak melalui pemeriksaan nomor revisi sehingga data terbaru tidak ditimpa diam-diam.
+Master material, frame shape, tinting, dan SKU dibagikan kepada seluruh akun pada database yang sama. Draft dan riwayat konsultasi mengikuti akun login, dengan maksimum 30 entri riwayat. Master dibatasi 1.000 SKU. Perubahan dari sesi lain ditolak melalui pemeriksaan nomor revisi sehingga data terbaru tidak ditimpa diam-diam.
 
-Data lama di browser **tidak dipindahkan otomatis** ke database. Gunakan alur berikut:
+Data lama di browser **tidak dipindahkan otomatis** ke database. Master SKU
+bawaan berisi 0 SKU. Screenshot CREA2 pada percakapan tidak menyediakan seluruh
+assignment supplier/blank dan rentang power SKU, sehingga bukan sumber impor
+SKU lengkap. Gunakan ekspor JSON dari aplikasi asal untuk mempertahankan
+konfigurasinya. Alur pemindahan:
+
 
 1. Buka simulator lama pada browser yang menyimpan datanya. Pada **Master SKU**, pilih **Ekspor JSON**.
-2. Pada versi MySQL, masuk lalu pilih **Master SKU → Impor JSON**. Periksa ringkasan perubahan dan pilih **Terapkan impor**.
+2. Pada versi MySQL, masuk lalu buka **Manage → Master SKU → Impor JSON**. Periksa ringkasan perubahan dan pilih **Terapkan impor**.
 3. Untuk setiap konsultasi lama, buka pilihan tersebut dan gunakan **Simpan pilihan → Unduh JSON**.
 4. Pada versi MySQL, buka **Tersimpan → Impor konsultasi JSON**, tinjau ringkasannya, lalu pilih **Simpan konsultasi**.
 
 Impor konsultasi menerima schema `trl-lens-consultation/1.3`. Impor tersebut tidak mengganti Master SKU. Impor Master SKU terlebih dahulu agar referensi SKU tersedia; ketersediaan blank diperiksa kembali ketika konsultasi dibuka. File yang hanya berisi gambar PNG/PDF tidak dapat diimpor sebagai data konsultasi.
 
 Tunggu indikator penyimpanan selesai sebelum keluar atau memuat ulang. Jika server terputus, aplikasi menampilkan status belum tersimpan dan mempertahankan perubahan tertunda; mode MySQL tidak beralih diam-diam ke penyimpanan browser. Jika ada konflik revisi, simpan salinan ekspor perubahan yang diperlukan, muat data terbaru, lalu tinjau ulang sebelum menyimpan.
+
+
+## 6A. Manage master dan memastikan seluruh data berada di MySQL
+
+Pada mode MySQL, menu **Manage** membaca dan menyimpan master langsung melalui
+server. Tiga katalog disimpan dalam satu transaksi database dengan satu nomor
+revisi. Ketika dua pengguna mengedit revisi yang sama, satu perubahan diterima
+dan perubahan yang sudah tertinggal ditolak untuk ditinjau ulang.
+
+- **Blank / Raw Material**: produk/supplier/indeks, diameter, base curve, CT/ET
+  bahan baku, serta rentang SPH/CYL/ADD per blank.
+- **Frame Shape**: nama, ukuran awal, kontur, dan status aktif/arsip.
+- **Manage Tinting**: kode/nama, jenis solid/gradasi, warna preview, label
+  persentase, catatan sumber, serta status aktif/arsip.
+- **Master SKU**: ketersediaan indeks, assignment blank, dan range power finish.
+
+Arsip mempertahankan ID sehingga riwayat konsultasi tidak kehilangan referensi.
+Data arsip tidak dipakai sebagai pilihan baru. Master yang sudah ada tidak boleh
+dihilangkan dari impor; impor harus menggabungkan data dan memakai ID yang tetap.
+Aturan power dapat diedit atau dihapus secara eksplisit dan kecocokan blank akan
+diperiksa kembali. Kode/ID berbeda bukan cara mengganti identitas record lama.
+
+`npm run doctor` membaca isi database dan menampilkan `masterCounts`. Pada
+instalasi kosong dari paket referensi, hasilnya:
+
+| Master | Jumlah awal |
+| --- | ---: |
+| Produk material | 19 |
+| Definisi blank | 186 |
+| Aturan power unik | 2.026 |
+| Frame shape | 13 |
+| Tinting | 66 |
+| SKU | 0, sampai master SKU diimpor/dibuat |
+
+Material indeks 1.59 dari sumber tetap berada di database sebagai katalog,
+sementara simulator memakai enam indeks yang telah disepakati. Setelah master
+ditambah atau diarsipkan, jumlah aktual dapat berbeda; `doctor` tidak menghapus
+atau mengembalikan perubahan ke jumlah awal. Katalog default tidak menggantikan
+Master SKU atau perubahan yang hanya tersimpan di browser. Ekspor data browser
+lalu impor melalui menu Manage pada instalasi MySQL untuk memindahkan data itu.
+
+Pemeriksaan SQL read-only tambahan:
+
+```sql
+SELECT revision, updated_at FROM leinz_catalog_revision WHERE id = 1;
+
+SELECT
+  JSON_LENGTH(document_json, '$.products') AS products,
+  JSON_LENGTH(document_json, '$.blanks') AS blanks,
+  JSON_LENGTH(document_json, '$.rules') AS power_rules
+FROM leinz_catalog_documents WHERE document_key = 'materials';
+
+SELECT document_key, JSON_LENGTH(document_json, '$.items') AS items
+FROM leinz_catalog_documents WHERE document_key IN ('shapes', 'tints');
+
+SELECT JSON_LENGTH(document_json, '$.skus') AS skus
+FROM leinz_workspace_documents WHERE document_key = 'skus';
+```
+
+Parameter `opticalProfile` dapat disimpan pada produk atau blank; profil blank
+menggantikan profil produk ketika dipilih. Parameter ketebalan minimum adalah
+batas **lensa jadi**, terpisah dari CT/ET bahan baku. Radius depan eksplisit
+mengambil prioritas atas power kurva depan. `source: lab` berarti pengguna
+mengisi parameter dan acuan lab; label tersebut bukan sertifikasi bahwa hasil
+perhitungan sudah identik dengan hasil produksi. Base curve pada CSV tidak
+langsung ditafsirkan sebagai power permukaan karena konvensinya belum tersedia.
+Konstanta conic selain 0 ditolak pada versi ini. Lihat dokumentasi model optik
+untuk cakupan perhitungan dan batas desain yang didukung.
 
 ## 7. Menjalankan sebagai layanan Linux dan memakai Nginx
 
@@ -341,16 +464,22 @@ Berikan hak akun aplikasi pada database hasil restore, sesuaikan `MYSQL_DATABASE
 1. Backup database dan `.env` lebih dahulu, lalu hentikan proses Node.js.
 2. Ekstrak versi paket ke folder terpisah. Pertahankan `.env` yang telah diisi; jangan menimpanya dengan `.env.example`.
 3. Jalankan `npm ci`, `npm run build`, dan `npm test` dari folder paket baru.
-4. Jalankan `db:migrate` lalu `db:seed`. Keduanya dapat diulang; migrasi tidak menghapus tabel, seed tidak mengganti Master SKU/konsultasi.
+4. Jalankan `db:migrate` lalu `db:seed`. Keduanya dapat diulang; migrasi tidak menghapus tabel, seed tidak mengganti katalog yang sudah dikelola, Master SKU, atau konsultasi. Pada upgrade dari 2.0, migrasi 002 menambah tabel revisi master dan mempertahankan enam tabel beserta data sebelumnya.
 5. Jangan membuat ulang akun yang sudah ada. Jalankan `doctor`, lalu mulai aplikasi.
 
 Jika `.env` memakai path relatif untuk sertifikat CA MySQL, pindahkan file CA tersebut atau sesuaikan path saat mengganti folder instalasi.
 
 ## 9. Pemeriksaan QA dan troubleshooting
 
+Acuan utama paket lengkap ini adalah
+[QA_RELEASE_2_1_1.md](QA_RELEASE_2_1_1.md), dengan log baru di
+`docs/qa-results/2.1.1-full/`. Laporan QA 2.1 dan laporan tata letak 2.1.1 beserta
+log sebelumnya tetap disertakan sebagai bukti historis. Cakupan dan hasil uji
+terbaru mengikuti laporan release, bukan disimpulkan dari laporan lama.
+
 `npm test` memeriksa geometri dan CT/ET, pemeriksaan diameter blank, SKU, frame/tangkai, penyimpanan, impor konsultasi, serta unit backend. Perintah tersebut tidak menghapus database.
 
-**`npm run test:mysql` berbeda:** ini adalah integration test untuk database disposable. Skrip memerlukan `LEINZ_ALLOW_TEST_DB=1` dan nama database `leinz_test_*`, lalu menghapus dan membuat ulang enam tabel Leinz pada target test. Jangan memakai database utama. Laporan QA dalam paket mencatat hasil uji pada MySQL 5.7.24 sebenarnya; operator tidak wajib menjalankan integration test destruktif untuk menggunakan aplikasi.
+**`npm run test:mysql` berbeda:** ini adalah integration test untuk database disposable. Gunakan akun uji yang mempunyai hak pada database disposable, termasuk CREATE, DROP, dan TRIGGER untuk injeksi kegagalan transaksi. Skrip memerlukan `LEINZ_ALLOW_TEST_DB=1` dan nama database `leinz_test_*`, lalu menghapus dan membuat ulang tujuh tabel Leinz pada target test. Jangan memakai database utama. Laporan QA dalam paket mencatat hasil uji pada MySQL 5.7.24 sebenarnya; operator tidak wajib menjalankan integration test destruktif untuk menggunakan aplikasi.
 
 | Gejala atau pesan | Pemeriksaan dan tindakan |
 | --- | --- |

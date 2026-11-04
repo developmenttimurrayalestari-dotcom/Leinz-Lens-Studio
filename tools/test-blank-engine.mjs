@@ -157,6 +157,56 @@ assert.equal(foreignBlank.warnings.length,1);
 const rawRejected = evaluate({ skuVariant:variant,rx:{sph:-4,cyl:-6,add:0} });
 assert.equal(rawRejected.summary.eligibleBothCount,0);
 
+// Archived masters remain available for historical diagnostics but cannot
+// produce a selectable blank, even if a finish SKU still references them.
+const archiveSku = {
+  index:'1.60',enabled:true,
+  power:{sphMin:-10,sphMax:10,cylMin:-7,cylMax:0,addMin:0,addMax:4},
+  assignments:[{id:'archive-assignment',supplier:'A',productId:'A:P',blankIds:['A:P:75']}]
+};
+const archiveEvaluation = (catalog,skuVariant=archiveSku) => Engine.evaluate({materials:catalog,index:'1.60',productId:'A:P',rx,frame:exact,skuVariant});
+for (const archivedKind of ['product','blank','rule']) {
+  const catalog=structuredClone(synthetic);
+  const target=archivedKind==='product'?catalog.products[0]:archivedKind==='blank'?catalog.blanks[0]:catalog.rules[0];
+  target.active=false;
+  const snapshot=JSON.stringify(catalog);
+  for (const skuVariant of [null,archiveSku]) {
+    const result=archiveEvaluation(catalog,skuVariant);
+    assert.equal(result.summary.eligibleBothCount,0,archivedKind+' must not remain selectable');
+    assert.equal(result.summary.eligibleRCount,0);
+    assert.equal(result.summary.eligibleLCount,0);
+    assert.equal(result.summary.minDiameterBoth,null);
+    assert.deepEqual(result.summary.powerEligibleDiameters,[]);
+    assert.equal(result.rows.length,1,'keep archived metadata for diagnostics');
+    const row=result.rows[0];
+    assert.ok(row.reasons.includes(archivedKind==='product'?'inactive-product':archivedKind==='blank'?'inactive-blank':'raw-power-outside'));
+    if (archivedKind==='blank') {
+      assert.deepEqual(result.summary.availableDiameters,[]);
+      assert.deepEqual(result.summary.assignedDiameters,[]);
+    }
+    if (archivedKind==='rule') {
+      assert.equal(row.rawPowerMatches,false);
+      assert.deepEqual(row.matchingRuleIds,[]);
+      assert.deepEqual(row.sourceRows,[]);
+      assert.deepEqual(row.allSourceRows,[2]);
+    }
+  }
+  assert.equal(JSON.stringify(catalog),snapshot,'archive eligibility checks must not mutate catalog');
+  target.active=true;
+  assert.equal(archiveEvaluation(catalog).summary.eligibleBothCount,1,'reactivation restores eligibility without changing IDs');
+}
+
+// An archived matching rule never supplies provenance, while another active
+// rule may independently permit the same blank and prescription.
+const mixedRules=structuredClone(synthetic);
+mixedRules.rules[0].active=false;
+mixedRules.rules.push({...structuredClone(synthetic.rules[0]),id:'r2-active',sourceRows:[3],active:true});
+const mixed=archiveEvaluation(mixedRules);
+assert.equal(mixed.summary.eligibleBothCount,1);
+assert.deepEqual(mixed.rows[0].matchingRuleIds,['r2-active']);
+assert.deepEqual(mixed.rows[0].sourceRows,[3]);
+assert.deepEqual(mixed.rows[0].allSourceRows,[2,3]);
+
 // Duplicate CSV lines remain provenance, not additional blank candidates.
 const duplicateRule = materials.rules.find(r=>r.hasExactDuplicates);
 const duplicateBlank = materials.blanks.find(b=>b.id===duplicateRule.blankId);
