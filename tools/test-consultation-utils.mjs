@@ -5,6 +5,7 @@ import { test } from 'node:test';
 
 const require = createRequire(import.meta.url);
 const { validSavedEntry, historyTintLabels, consultationToState } = require('../dist/consultation-utils.js');
+const { getAppearance } = require('../dist/photochromic.js');
 const catalogs = Object.fromEntries(['tints', 'materials', 'shapes'].map(name => [name,
   JSON.parse(readFileSync(new URL(`../dist/assets/${name}.json`, import.meta.url), 'utf8'))
 ]));
@@ -195,4 +196,79 @@ test('invalid optical overrides reject the whole consultation instead of inventi
     const input=consultation();input.preview.optics=optics;
     assert.throws(()=>consultationToState(input,catalogs),/CT\/ET/);
   }
+});
+
+function photochromicConsultation(uvExposure = 72.5) {
+  const input = consultation();
+  input.schema = 'trl-lens-consultation/1.4';
+  input.preview.uvExposure = uvExposure;
+  input.choices[0].tint = null;
+  input.choices[0].photochromic = getAppearance(true, uvExposure);
+  input.choices[1].photochromic = getAppearance(false, uvExposure);
+  return input;
+}
+
+test('legacy consultations default to photochromic off and zero UV without changing their tint choices', () => {
+  const state = consultationToState(consultation(), catalogs);
+  assert.equal(state.uvExposure, 0);
+  assert.equal(state.a.photochromic, false);
+  assert.equal(state.b.photochromic, false);
+  assert.equal(state.a.tintCode, '09S');
+  assert.equal(state.b.tintCode, '09G');
+});
+
+test('schema 1.4 round-trips independent photochromic modes and common UV without changing frame, Rx or selected blanks', () => {
+  const input = photochromicConsultation(), before = copy(input);
+  const state = consultationToState(JSON.parse(JSON.stringify(input)), catalogs);
+  const legacyState = consultationToState(consultation(), catalogs);
+  assert.deepEqual(input, before);
+  assert.equal(state.uvExposure, 72.5);
+  assert.equal(state.a.photochromic, true);
+  assert.equal(state.a.tintCode, null);
+  assert.equal(state.b.photochromic, false);
+  assert.equal(state.b.tintCode, '09G');
+  for (const key of ['shape','width','height','dbl','sph','cyl','axis','add','pdR','pdL','heightR','heightL']) assert.equal(state[key], legacyState[key]);
+  for (const key of ['a','b']) {
+    for (const field of ['index','productId','blankIdR','blankIdL','note']) assert.equal(state[key][field], legacyState[key][field]);
+    assert.deepEqual(state[key].camera, legacyState[key].camera);
+    assert.deepEqual(getAppearance(state[key].photochromic, state.uvExposure), input.choices.find(choice=>choice.choice===key.toUpperCase()).photochromic);
+  }
+});
+
+test('photochromic at zero UV remains enabled, and reversed A/B choices preserve the correct pair modes', () => {
+  const input = photochromicConsultation(0); input.choices.reverse();
+  const state = consultationToState(input, catalogs);
+  assert.equal(state.a.photochromic, true);
+  assert.equal(state.a.tintCode, null);
+  assert.equal(state.b.photochromic, false);
+  assert.equal(state.b.tintCode, '09G');
+  assert.equal(state.uvExposure, 0);
+});
+
+test('consultation import rejects tint plus photochromic and incomplete or inconsistent UV snapshots', () => {
+  for (const mutate of [
+    item => { item.choices[0].tint = { code: '09S' }; },
+    item => { item.choices[0].tint = {}; },
+    item => { item.choices[0].photochromic.enabled = 'true'; },
+    item => { item.choices[0].photochromic.uvExposure = 70; },
+    item => { item.choices[0].photochromic.visualDarknessPercent = 100; },
+    item => { item.choices[0].photochromic.simulationOnly = false; },
+    item => { item.choices[0].photochromic = true; },
+    item => { item.choices[1].photochromic = null; },
+    item => { delete item.choices[1].photochromic; },
+    item => { delete item.preview.uvExposure; },
+    item => { item.preview.uvExposure = '72.5'; },
+    item => { item.preview.uvExposure = NaN; },
+    item => { item.preview.uvExposure = -1; },
+    item => { item.preview.uvExposure = 101; }
+  ]) {
+    const input = photochromicConsultation(); mutate(input);
+    assert.throws(() => consultationToState(input, catalogs));
+  }
+});
+
+test('history labels distinguish photochromic from clear and tint, including fallback state-only history', () => {
+  assert.equal(historyTintLabels({ data: photochromicConsultation() }), 'Photochromic / 09G');
+  assert.equal(historyTintLabels({ state: { a: { photochromic: true, tintCode: null }, b: { photochromic: false, tintCode: '09S' } } }), 'Photochromic / 09S');
+  assert.equal(historyTintLabels({ data: photochromicConsultation(0) }), 'Photochromic / 09G');
 });

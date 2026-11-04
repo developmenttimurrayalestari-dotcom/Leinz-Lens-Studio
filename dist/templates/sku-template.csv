@@ -1,0 +1,2 @@
+﻿sku_code,sku_name,sku_active,index,index_enabled,sph_min,sph_max,cyl_min,cyl_max,add_min,add_max,supplier,LensCode,base_curve,diameter
+DEMO-IMPORT,Contoh SKU impor (nonaktif),FALSE,1.6,TRUE,-9.25,-8,-4,0,0,0,DMO,SPHG60,1,75

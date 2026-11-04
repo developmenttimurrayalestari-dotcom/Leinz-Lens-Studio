@@ -1,1 +1,0 @@
-{"ready":true,"version":"5.7.24","sqlMode":"IGNORE_SPACE,ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION","maxAllowedPacket":16777216,"databases":["leinz_test_full211","leinz_test_sql211","leinz_test_split211","leinz_test_restore211"]}

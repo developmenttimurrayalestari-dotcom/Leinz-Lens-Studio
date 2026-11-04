@@ -1,13 +1,13 @@
-# Mulai di sini — Leinz Lens Studio 2.1.1
+# Mulai di sini — Leinz Lens Studio 2.2.0
 
-Paket **Leinz-Lens-Studio-2.1.1-Full-Source-Database.zip** berisi source code,
+Paket **Leinz-Lens-Studio-2.2.0-Full-Source-Database.zip** berisi source code,
 frontend siap disajikan, backend Node.js, skema MySQL, master data sumber, serta
 panduan dan hasil QA. Folder utama hasil ekstraksi adalah `leinz-lens-studio`.
 Jalankan semua perintah aplikasi dari folder yang memuat `package.json`.
 
 **Panduan database:** [docs/DATABASE_IMPORT.md](docs/DATABASE_IMPORT.md)  
 **Panduan instalasi Windows/Linux:** [docs/INSTALL_MYSQL57.md](docs/INSTALL_MYSQL57.md)  
-**Hasil QA paket ini:** [docs/QA_RELEASE_2_1_1.md](docs/QA_RELEASE_2_1_1.md)
+**Hasil QA paket ini:** [docs/QA_RELEASE_2_2_0.md](docs/QA_RELEASE_2_2_0.md)
 
 ## 1. Siapkan perangkat lunak dan database
 
@@ -122,5 +122,11 @@ diekspor dan diimpor melalui menu Manage.
 
 Setelah impor atau seed, `npm run doctor` menampilkan jumlah master yang
 benar-benar berada di database. Laporan pengujian paket lengkap ada di
-`docs/QA_RELEASE_2_1_1.md`, dan log barunya di `docs/qa-results/2.1.1-full/`.
+`docs/QA_RELEASE_2_2_0.md`, dan log barunya di `docs/qa-results/2.2.0/`.
 Laporan versi sebelumnya tetap disertakan sebagai riwayat pengujian.
+
+## Fitur baru dan template
+
+Lihat [panduan 2.2.0](docs/PERUBAHAN_2_2_0.md) untuk photochromic, UV, dan uji resep simultan.
+Template CSV/Excel berada di `dist/templates/` dan tersedia dari menu Manage.
+Petunjuk kolom dan aturan penggantian cakupan ada di [panduan impor](docs/IMPORT_CSV_EXCEL.md).

@@ -1,0 +1,3 @@
+﻿code,name,kind,group,nominal_percent,preview_hex,preview_mid_hex,preview_bottom_hex,reference_note,requires_physical_sample,active,override_reference,manual_reference
+01S,Bazaar,Solid,fashion,,#E3D2E2,#E3D2E2,#E3D2E2,Kode dan jenis cocok dengan sampel PDF; warna layar diambil dari render PDF.,FALSE,TRUE,FALSE,
+02G,Cerulean Frost Gradient,Gradient,fashion,,#7FA6CA,#D3DDEC,#FEFFFF,Kode dan jenis cocok dengan sampel PDF; warna layar diambil dari render PDF.,FALSE,TRUE,FALSE,

@@ -1,80 +1,57 @@
 # Leinz Lens Studio
 
 Simulator konsultasi tint dan ilustrasi bentuk lensa untuk PT Timur Raya Lestari.
-Versi 2.1.1 menyediakan aplikasi server Node.js dengan database **MySQL 5.7.24**,
+Versi 2.2.0 menyediakan aplikasi server Node.js dengan database **MySQL 5.7.24**,
 serta preview statis yang menyimpan data di browser. Keduanya memakai antarmuka
 dan model perhitungan yang sama. Aplikasi belum mengirim order atau terhubung
 langsung ke perhitungan produksi Lensware.
 
-## Paket source code dan database lengkap
-
-Paket **Leinz-Lens-Studio-2.1.1-Full-Source-Database.zip** memiliki folder utama
-`leinz-lens-studio`. Mulai dari [MULAI_DI_SINI.md](MULAI_DI_SINI.md) untuk urutan
-instalasi singkat, atau [panduan impor database](docs/DATABASE_IMPORT.md) untuk
-memasang skema dan master melalui berkas SQL.
-
-| Isi paket | Lokasi |
-| --- | --- |
-| Frontend siap disajikan, source simulator, dan aset | `dist/` |
-| Backend Node.js, autentikasi, dan akses MySQL | `server/` |
-| SQL gabungan skema dan seluruh master sumber | [database/leinz-schema-and-master-data.sql](database/leinz-schema-and-master-data.sql) |
-| Migrasi skema yang dipakai perintah CLI | `database/001_initial.sql`, `database/002_managed_catalogs.sql` |
-| Katalog master sumber dalam JSON | `dist/assets/materials.json`, `dist/assets/shapes.json`, `dist/assets/tints.json` |
-| Konfigurasi contoh | `.env.example` |
-| Panduan instalasi Windows/Linux | [docs/INSTALL_MYSQL57.md](docs/INSTALL_MYSQL57.md) |
-| QA paket lengkap ini | [docs/QA_RELEASE_2_1_1.md](docs/QA_RELEASE_2_1_1.md) |
-| Log pengujian paket lengkap ini | `docs/qa-results/2.1.1-full/` |
-
-SQL dan jalur CLI memuat katalog sumber yang sama: **19 produk material,
-186 blank, 2.026 aturan power, 13 frame shape, dan 66 tinting**. Master SKU awal
-berisi **0 SKU**. Konfigurasi SKU perusahaan yang tersimpan di browser atau
-server lain tidak tersedia dalam source ini. Screenshot **CREA2** menunjukkan
-contoh pilihan, tetapi tidak memuat seluruh assignment blank dan batas power;
-konfigurasi tersebut tidak direkonstruksi dari gambar. Ekspor Master SKU dari
-instalasi asal, lalu impor melalui **Manage → Master SKU** untuk memindahkannya.
-
 ## Instalasi versi MySQL
 
-Paket menggunakan **Node.js 22.x atau 24.x** dan **MySQL 5.7.24**, dengan dependency
-terkunci pada `package-lock.json`. Siapkan database, akun database, dan `.env`
-sesuai [panduan instalasi](docs/INSTALL_MYSQL57.md). Tidak tersedia akun atau
-password database maupun aplikasi bawaan.
-
-Setelah ekstraksi, jalankan dari folder `leinz-lens-studio`:
+Mulai dari [panduan instalasi MySQL 5.7](docs/INSTALL_MYSQL57.md). Paket menggunakan
+Node.js 22 atau 24, dependency terkunci pada `package-lock.json`, SQL kompatibel
+MySQL 5.7, serta katalog referensi lengkap yang sudah siap digunakan.
 
 ```sh
 npm ci
 npm run build
 npm test
-```
-
-Pilih **satu** cara untuk membuat skema dan mengisi master:
-
-| Jalur | Langkah |
-| --- | --- |
-| Otomatis melalui CLI aplikasi | Jalankan `npm run db:migrate`, kemudian `npm run db:seed`. |
-| Impor SQL manual untuk database baru | Impor `database/leinz-schema-and-master-data.sql` mengikuti [DATABASE_IMPORT.md](docs/DATABASE_IMPORT.md). Langkah ini menggantikan kedua perintah CLI di atas pada instalasi awal. |
-
-Sesudah salah satu jalur selesai, buat akun login aplikasi dan mulai layanan:
-
-```sh
+# Buat database dan isi .env sesuai panduan sebelum langkah berikut:
+npm run db:migrate
+npm run db:seed
 npm run admin:create
 npm run doctor
 npm start
 ```
 
-`admin:create` meminta password baru **8–128 karakter**. Buka alamat browser yang
-persis sama dengan `APP_URL` pada `.env`, termasuk protokol dan port. Status
-penyimpanan setelah login harus menampilkan **MySQL**. Pada Windows PowerShell,
-gunakan `npm.cmd` bila `npm.ps1` diblokir oleh kebijakan eksekusi.
-
 Kode JavaScript dijalankan langsung. `npm run build` memeriksa sintaks seluruh
 source, keberadaan aset HTML, dan JSON katalog; tidak memerlukan compiler C/C++,
 Python, generator katalog, atau proses transpile untuk menjalankan aplikasi.
-Hasil build, instalasi, impor database, dan batas QA paket lengkap ini dicatat
-di [laporan QA release 2.1.1](docs/QA_RELEASE_2_1_1.md). Laporan
-[QA tata letak 2.1.1](docs/QA_2_1_1.md), [QA 2.1](docs/QA_2_1.md), dan log lamanya
-dipertahankan sebagai catatan historis; bukan pengganti hasil uji release ini.
+Panduan paket lengkap ada di [MULAI_DI_SINI.md](MULAI_DI_SINI.md).
+Hasil QA rilis ini dicatat di [QA 2.2.0](docs/QA_RELEASE_2_2_0.md).
+Skema dan seluruh master referensi juga tersedia sebagai SQL siap impor; lihat
+[panduan database](docs/DATABASE_IMPORT.md).
+
+## Pembaruan versi 2.2.0
+
+- **Photochromic per pasangan A/B**, tint terkunci saat aktif, dan paparan UV
+  bersama 0–100% untuk perubahan bening–gelap. Warna layar merupakan simulasi
+  visual abu-abu, bukan VLT, UV Index atau waktu aktivasi produk.
+- **Impor CSV dan Excel .xlsx** untuk blank/raw material, frame shape, tinting,
+  dan SKU, beserta delapan template siap diunduh. Impor JSON tetap tersedia.
+- **Range blank per baris**: SPH, CYL dan ADD cocok bersamaan; impor menampilkan
+  duplikat, perubahan dan error sebelum penyimpanan. Hanya cakupan blank yang
+  tercantum diperbarui; identitas dan master lain dipertahankan.
+- **Uji resep simultan** sampai 20 resep terhadap A/B, dengan kandidat dan
+  diameter minimum per mata serta unduhan hasil CSV.
+- **Konsultasi schema 1.4** menyimpan photochromic dan UV; schema 1.3 tetap
+  dapat diimpor. Pengaturan ini tersimpan dalam dokumen JSON MySQL yang sama.
+
+Baca [panduan fitur 2.2.0](docs/PERUBAHAN_2_2_0.md) dan
+[panduan impor CSV/Excel](docs/IMPORT_CSV_EXCEL.md). Pembaruan dari 2.1.1 tidak
+memerlukan migrasi tabel baru. Pertahankan database dan `.env`, pasang paket
+baru dengan `npm ci`, jalankan `npm run build` dan `npm test`, lalu restart.
+Instalasi lebih lama mengikuti prosedur migrasi pada panduan MySQL.
 
 ## Pembaruan versi 2.1.1
 
@@ -542,7 +519,7 @@ penyimpanan asynchronous, pemulihan konflik, autentikasi, dan impor konsultasi.
 disposable bernama `leinz_test_*` dan `LEINZ_ALLOW_TEST_DB=1`; skrip akan menghapus
 data pengujian pada database tersebut. Jangan gunakan database operasional.
 
-Verifikasi browser historis pada pengembangan sebelumnya mencakup pencarian 42S, pilihan custom CONG, pergantian indeks
+Verifikasi browser mencakup pencarian 42S, pilihan custom CONG, pergantian indeks
 dan shape, pembuatan serta nonaktivasi SKU, perubahan sentrasi, invalidasi blank,
 simpan/buka pilihan, dan unduhan JSON/PNG. Fixture tanpa SKU dengan shape 001,
 A 52/B 38/DBL 18 mm, PD R/L 31,5 mm, tinggi R/L 19 mm, allowance 2 mm, dan

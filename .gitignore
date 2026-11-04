@@ -1,1 +1,10 @@
-/.env
+node_modules/
+.env
+.env.*
+!.env.example
+*.log
+.sites-runtime/
+.qa/
+coverage/
+release/
+.DS_Store

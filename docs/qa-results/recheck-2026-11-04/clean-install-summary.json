@@ -1,0 +1,25 @@
+{
+  "startedAt": "2026-11-04T05:31:00.458210+00:00",
+  "node": "v24.22.1",
+  "npm": "11.9.0",
+  "system": "Linux",
+  "steps": [
+    {
+      "name": "npm-ci",
+      "exitCode": 0,
+      "log": "npm-ci.txt"
+    },
+    {
+      "name": "npm-build",
+      "exitCode": 0,
+      "log": "npm-build.txt"
+    },
+    {
+      "name": "npm-test",
+      "exitCode": 0,
+      "log": "npm-test.txt"
+    }
+  ],
+  "completedAt": "2026-11-04T05:31:24.598384+00:00",
+  "ok": true
+}

@@ -1,4 +1,4 @@
-# Impor database dan master data — Leinz Lens Studio 2.1.1
+# Impor database dan master data — Leinz Lens Studio 2.2.0
 
 Paket ini menyediakan **SQL MySQL 5.7.24 beserta seluruh master referensi yang
 tersedia di source**. Berkas SQL dapat diimpor langsung melalui MySQL client,

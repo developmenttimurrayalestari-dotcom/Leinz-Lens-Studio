@@ -1,0 +1,107 @@
+{
+  "release": "2.2.0",
+  "date": "2026-11-04",
+  "description": "Salinan hasil eksekusi QA. Tidak memuat konfigurasi, kredensial, data pengguna, dump database, atau binary. Nilai PASS/FAIL, jumlah pengujian, versi dan hash master dipertahankan.",
+  "files": [
+    {
+      "sourceFilename": "extracted-npm-ci.txt",
+      "publishedFilename": "npm-ci.txt",
+      "sourceSha256": "8ffee3d2edb67beb354209be521dbf87c89335d885706b77d6f140a776d0e153",
+      "publishedSha256": "8ffee3d2edb67beb354209be521dbf87c89335d885706b77d6f140a776d0e153",
+      "sanitization": [
+        "Tidak memerlukan perubahan isi"
+      ]
+    },
+    {
+      "sourceFilename": "extracted-npm-build.txt",
+      "publishedFilename": "npm-build.txt",
+      "sourceSha256": "8ef28d025e3860ea57cf5d69addb9a9712f1c838cb8e116540dcd7bca91ca663",
+      "publishedSha256": "8ef28d025e3860ea57cf5d69addb9a9712f1c838cb8e116540dcd7bca91ca663",
+      "sanitization": [
+        "Tidak memerlukan perubahan isi"
+      ]
+    },
+    {
+      "sourceFilename": "extracted-npm-test.txt",
+      "publishedFilename": "npm-test.txt",
+      "sourceSha256": "b454ebe0fe9b81dbe7afe8d5f6ebb6345cc4a3c17ec100ec11d816c1f288e1b7",
+      "publishedSha256": "b454ebe0fe9b81dbe7afe8d5f6ebb6345cc4a3c17ec100ec11d816c1f288e1b7",
+      "sanitization": [
+        "Tidak memerlukan perubahan isi"
+      ]
+    },
+    {
+      "sourceFilename": "mysql-runtime.txt",
+      "publishedFilename": "mysql-runtime.txt",
+      "sourceSha256": "abe4ca1dad86f7fad741706a3fd7bc80f2baf67267711c2610ef15c1e2cfed23",
+      "publishedSha256": "1602ccbde7f68b6ee43572286a49472de71ff4d24678c4db43a54e90e0b78467",
+      "sanitization": [
+        "Nama database sementara disamarkan"
+      ]
+    },
+    {
+      "sourceFilename": "mysql-integration.txt",
+      "publishedFilename": "mysql-integration.txt",
+      "sourceSha256": "5c41accab8dec1c876a1f6b45d985a93c1b582c4f0bf7c0544e7f07b21753959",
+      "publishedSha256": "262bd9aeecca9c484bb3f14d6a1bb63b77720e86549165e4f9fb65d1cc334f7e",
+      "sanitization": [
+        "Nama database sementara disamarkan"
+      ]
+    },
+    {
+      "sourceFilename": "mysql-restart.txt",
+      "publishedFilename": "mysql-restart.txt",
+      "sourceSha256": "baa74569b0e7b5c902f633476e7bc531c81679ca2269efbca6a205b6450781a8",
+      "publishedSha256": "522b4ddbb88eb0d491513ae07e4f285946e49ec32da504b38f67bc6b22d3c128",
+      "sanitization": [
+        "Nama database sementara disamarkan"
+      ]
+    },
+    {
+      "sourceFilename": "npm-start-process.txt",
+      "publishedFilename": "npm-start.txt",
+      "sourceSha256": "a8579c29b4864c498367d82637229164e3d526a12281720c93054ab0861deb1d",
+      "publishedSha256": "7df3f9a8b4536283a6b091dc48251dc9142ac2a49ecb92a9933ab9c5e8022e1b",
+      "sanitization": [
+        "Port listener sementara disamarkan"
+      ]
+    },
+    {
+      "sourceFilename": "npm-start-smoke.json",
+      "publishedFilename": "npm-start-smoke.json",
+      "sourceSha256": "ae394c3a910ed9f432d746015404274faa98be4f94371074f6e9b2edf52ba7b6",
+      "publishedSha256": "ae394c3a910ed9f432d746015404274faa98be4f94371074f6e9b2edf52ba7b6",
+      "sanitization": [
+        "Tidak memerlukan perubahan isi"
+      ]
+    },
+    {
+      "sourceFilename": "sql-import.txt",
+      "publishedFilename": "sql-import.txt",
+      "sourceSha256": "686db5bd956c74f04f1e821251354aeaae13966ff515eac4bde509a6ca22a3c9",
+      "publishedSha256": "686db5bd956c74f04f1e821251354aeaae13966ff515eac4bde509a6ca22a3c9",
+      "sanitization": [
+        "Tidak memerlukan perubahan isi"
+      ]
+    },
+    {
+      "sourceFilename": "sql-install-qa.json",
+      "publishedFilename": "sql-install-qa.json",
+      "sourceSha256": "dda2e0a9af0d30b2d620841d499bef71fdbd1ab84fd14d7904b8e4ae4d6b2f8d",
+      "publishedSha256": "ea984ca491d1f52b8baf703ab209712134bb40f397bb649be69251bce963e027",
+      "sanitization": [
+        "Nama database sementara disamarkan",
+        "Metadata nama/ukuran/hash berkas backup sementara dihapus; hasil pemeriksaan restore dipertahankan"
+      ]
+    },
+    {
+      "sourceFilename": "final-code-comparison.json",
+      "publishedFilename": "final-code-comparison.json",
+      "sourceSha256": "b52b5fff8a962aa9578099d2aa6ba67241c026239ba3b8a5e9c00a72ecb9321c",
+      "publishedSha256": "b52b5fff8a962aa9578099d2aa6ba67241c026239ba3b8a5e9c00a72ecb9321c",
+      "sanitization": [
+        "Format JSON dirapikan; isi hasil perbandingan dipertahankan"
+      ]
+    }
+  ]
+}

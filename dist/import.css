@@ -1,0 +1,38 @@
+/* Import controls share the management workspace's visual hierarchy. */
+.mm-toolbar{flex-wrap:wrap}
+.mm-tools{max-width:100%}
+.import-templates{position:relative;display:inline-block;font-size:11px;line-height:1.5;flex-shrink:0;text-align:left}
+.import-templates>summary{list-style:none;cursor:pointer;padding:10px 13px;min-height:40px;display:flex;align-items:center;gap:6px;border:1px solid #dfe5d7;border-radius:8px;background:#fff;color:#5e7052;font-weight:500;box-sizing:border-box}
+.import-templates>summary::-webkit-details-marker{display:none}
+.import-templates>summary:hover,.import-templates[open]>summary{background:#f4f7ed;border-color:#c3ceb8}
+.import-templates>summary:focus-visible{outline:3px solid #e87b4e;outline-offset:3px}
+.import-templates>div{position:absolute;right:0;top:calc(100% + 6px);min-width:170px;z-index:12;background:#fff;border:1px solid #dfe5d7;border-radius:10px;padding:5px;box-shadow:0 10px 30px #26332320}
+.import-templates a{display:block;color:#536647;font-size:12px;text-decoration:none;padding:11px 12px;border-radius:6px;white-space:nowrap}
+.import-templates a:hover,.import-templates a:focus-visible{background:#f1f5e9;color:#374f2c}
+.import-info{font-size:12px;line-height:1.8;color:#606d55;margin:16px 0 20px;max-width:100%;min-width:0}
+.import-info>p{margin:7px 0}
+.import-replace-note{padding:13px 15px;border:1px solid #eed6be;border-radius:9px;background:#fff8ef;color:#8b673c}
+.import-replace-note strong{font-weight:600}
+.import-row-preview{border:1px solid #e2e8d9;border-radius:9px;margin:15px 0;min-width:0;overflow:hidden;background:#fff}
+.import-row-preview>summary{cursor:pointer;padding:10px 14px;background:#f5f8ef;font-size:11px;color:#60734e;font-weight:500}
+.import-preview-scroll{overflow-x:auto;max-width:100%;max-height:280px}
+.import-preview-scroll table{border-collapse:collapse;width:100%;font-size:10px;line-height:1.6;text-align:left}
+.import-preview-scroll th{font-weight:600;background:#f6f8f2;color:#6d795d;white-space:nowrap;padding:9px 11px;border-bottom:1px solid #dfe5d7}
+.import-preview-scroll td{padding:9px 11px;min-width:90px;max-width:220px;vertical-align:top;border-bottom:1px solid #edf0e7;color:#657058;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
+.import-preview-scroll td:first-child{min-width:140px}
+.import-preview-scroll tr:last-child td{border-bottom:0}
+.import-error-list{background:#fff5ee;border:1px solid #ebcbb8;border-radius:9px;padding:13px 17px;color:#9b5f3b;line-height:1.8;font-size:12px;max-height:360px;overflow:auto;overflow-wrap:anywhere;margin:12px 0 20px}
+.import-error-list ul{margin:0;padding-left:19px}
+.import-error-list li+li{margin-top:6px}
+#mm-import-content{min-width:0}
+.sku-import-review{min-width:0;overflow-wrap:anywhere}
+.sku-toolbar-actions{flex-wrap:wrap;max-width:100%}
+@media(max-width:650px){
+  .mm-tools,.sku-toolbar-actions{justify-content:flex-start;gap:7px;width:100%}
+  .mm-tools>.button,.mm-tools>.mm-import-label{padding:10px 11px;font-size:10px}
+  .import-templates>summary{font-size:10px;padding:10px 11px}
+  .import-templates>div{left:0;right:auto}
+  .import-info{font-size:11px}
+  .import-replace-note{padding:11px 12px}
+  .import-error-list{font-size:11px;padding:12px}
+}

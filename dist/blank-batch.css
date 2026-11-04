@@ -1,0 +1,19 @@
+.batch-panel{border:1px solid #e0e7db;border-radius:11px;background:#fbfcf8;padding:17px;margin:24px 0}
+.batch-heading{display:flex;align-items:center;justify-content:space-between;gap:16px}
+.batch-heading h2{font-size:16px}
+.batch-heading p{font-size:11px;color:#86927d;line-height:1.65;margin:6px 0 0;max-width:650px}
+.batch-heading .button{font-size:11px;padding:9px 12px;min-height:36px}
+.batch-context{font-size:11px;color:#66785b;line-height:1.8;padding:9px 11px;background:#eff4e8;border-radius:6px;margin:13px 0}
+.batch-table{width:100%;border-collapse:collapse;min-width:720px;font-variant-numeric:tabular-nums}
+.batch-table th{font-size:10px;font-weight:600;color:#7d8a74;text-align:left;padding:10px 7px;border-bottom:1px solid #dce5d5}
+.batch-table td{padding:10px 7px;border-bottom:1px solid #e5eadf;vertical-align:top}
+.batch-table tbody tr:last-child td,.batch-table tbody tr:last-child th{border-bottom:0}
+.batch-table input{width:85px;font-size:12px;padding:9px 6px;background:#fff}
+.batch-result{min-width:160px}
+.batch-result strong,.batch-result small{display:block;font-size:11px;color:#617554;line-height:1.6;margin-top:4px}
+.batch-result small{font-size:10px;font-weight:400;color:#8a947f}
+.batch-result .batch-reason{color:#a47a4d;max-width:235px}
+.batch-footer{display:flex;justify-content:space-between;gap:12px;align-items:center;padding-top:8px}
+.batch-footer p{font-size:10px;color:#829275;margin:0}
+.batch-footer .text-button{font-size:11px}
+@media(max-width:700px){.batch-panel{padding:13px}.batch-heading{flex-wrap:wrap;gap:12px}.batch-footer{align-items:flex-start;flex-wrap:wrap}.batch-context{font-size:10px}.batch-table input{min-height:40px}}

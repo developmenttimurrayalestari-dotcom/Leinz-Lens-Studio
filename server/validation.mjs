@@ -3,6 +3,7 @@ import { validationError } from './errors.mjs';
 const require = createRequire(import.meta.url);
 const { validateCatalog, SCHEMA } = require('../dist/sku-manager.js');
 const { validateCatalogBundle, validateOpticalProfile } = require('../dist/catalog-model.js');
+const { validateExposure, validateSnapshot } = require('../dist/photochromic.js');
 const INDICES = ['1.50', '1.56', '1.57', '1.60', '1.67', '1.74'];
 const BOUNDS = {
   width: [35, 70], height: [25, 60], dbl: [10, 28], sph: [-20, 12], cyl: [-7, 0], axis: [0, 180], add: [0, 4],
@@ -44,6 +45,9 @@ export function validateState(value, catalogs, { legacy = false } = {}) {
     if (typeof value[key] !== 'number' || !Number.isFinite(value[key]) || value[key] < min || value[key] > max) throw validationError(`Nilai ${key} harus ${min}–${max}.`);
   }
   for (const key of ['sync', 'showFrame', 'showTemples']) if (value[key] !== undefined && typeof value[key] !== 'boolean') throw validationError(`Nilai ${key} harus berupa boolean.`);
+  if (value.uvExposure !== undefined) {
+    try { validateExposure(value.uvExposure); } catch (error) { throw validationError(error.message); }
+  }
   if (value.frameStyle !== undefined && !['full-rim', 'half-rimless', 'rimless'].includes(value.frameStyle)) throw validationError('Jenis frame tidak valid.');
   if (value.shapeRevision !== undefined && value.shapeRevision !== null && (typeof value.shapeRevision !== 'string' || value.shapeRevision.length > 64)) throw validationError('Revisi bentuk tidak valid.');
   if (value.optics !== undefined) {
@@ -59,6 +63,11 @@ export function validateState(value, catalogs, { legacy = false } = {}) {
     if (!isObject(slot) || !INDICES.includes(slot.index)) throw validationError(`Indeks pasangan ${key.toUpperCase()} tidak valid.`);
     if (typeof slot.productId !== 'string' || (slot.productId && !safeId(slot.productId))) throw validationError('ID produk tidak valid.');
     for (const field of ['skuId', 'blankIdR', 'blankIdL']) if (slot[field] !== undefined && slot[field] !== null && !safeId(slot[field])) throw validationError(`${field} tidak valid.`);
+    if (slot.photochromic !== undefined && typeof slot.photochromic !== 'boolean') throw validationError('Status photochromic harus berupa boolean.');
+    if (slot.photochromic === true) {
+      if (value.uvExposure === undefined) throw validationError('Paparan UV simulasi wajib disimpan untuk photochromic aktif.');
+      if (slot.tintCode !== null) throw validationError('Photochromic aktif tidak dapat digabungkan dengan tinting.');
+    }
     if (slot.tintCode !== null && !catalogs.tints.items.some(tint => tint.code === slot.tintCode)) throw validationError('Kode tint tidak tersedia.');
     if (slot.note !== undefined && (typeof slot.note !== 'string' || slot.note.length > 800)) throw validationError('Catatan maksimal 800 karakter.');
     if (slot.customColor !== undefined && (typeof slot.customColor !== 'string' || !/^#[a-f0-9]{6}$/i.test(slot.customColor))) throw validationError('Warna custom tidak valid.');
@@ -79,6 +88,21 @@ export function validateSaved(value, catalogs) {
     if (item.state === null) throw validationError('State konsultasi tidak boleh kosong.');
     validateState(item.state, catalogs, { legacy: true });
     if (!isObject(item.data) || !Array.isArray(item.data.choices) || item.data.choices.length !== 2 || item.data.choices.some(choice => !isObject(choice) || !INDICES.includes(choice.index) || (choice.tint !== null && choice.tint !== undefined && !isObject(choice.tint)))) throw validationError('Snapshot konsultasi harus memuat dua pilihan pasangan lensa.');
+    const hasPhotochromic = item.data.schema === 'trl-lens-consultation/1.4' || item.data.preview?.uvExposure !== undefined || item.data.choices.some(choice=>choice.photochromic!==undefined);
+    if (hasPhotochromic) {
+      try {
+        const uvExposure = validateExposure(item.data.preview?.uvExposure);
+        if (uvExposure !== (item.state.uvExposure ?? 0)) throw Error('Paparan UV pada snapshot tidak sama dengan state konsultasi.');
+        for (const key of ['a','b']) {
+          const choice = item.data.choices.find(value=>value.choice===key.toUpperCase());
+          if (!choice) throw Error('Snapshot photochromic harus memuat pilihan A dan B.');
+          const appearance = validateSnapshot(choice.photochromic,{uvExposure,tint:choice.tint,required:true});
+          if (appearance.enabled !== (item.state[key].photochromic === true)) throw Error('Status photochromic pada snapshot tidak sama dengan state konsultasi.');
+        }
+      } catch (error) { throw validationError(error.message); }
+    } else if (item.state.a.photochromic === true || item.state.b.photochromic === true) {
+      throw validationError('Konsultasi photochromic aktif memerlukan snapshot paparan UV dan status pasangan.');
+    }
   }
   return JSON.parse(JSON.stringify(value));
 }

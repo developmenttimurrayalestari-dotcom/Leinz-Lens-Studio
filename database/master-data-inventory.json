@@ -1,6 +1,6 @@
 {
   "schema": "leinz-database-package-inventory/1.0",
-  "applicationVersion": "2.1.1",
+  "applicationVersion": "2.2.0",
   "targetDatabase": "MySQL 5.7.24",
   "dataScope": "Complete packaged reference catalogs; not an export of an operational database or browser-local edits.",
   "counts": {
@@ -252,15 +252,15 @@
   "sqlFiles": {
     "leinz-schema.sql": {
       "bytes": 3644,
-      "sha256": "f494683db34cbaa88e85d7557a2da3cdfe84182a71be1f665fce1f43444bfd4e"
+      "sha256": "16c43c499dcaa1109f52b62a98465b663b29d359c346a944945d6c47730e4474"
     },
     "leinz-master-data.sql": {
       "bytes": 1124147,
-      "sha256": "e19091f3cfa9e5dbbe12392becfecec54ccc86464fd697a95c65bb2ad358924b"
+      "sha256": "805ad28ea88248d4da0e72dd503f9979e3dd13a78137866e1c162840816c50e6"
     },
     "leinz-schema-and-master-data.sql": {
       "bytes": 1127394,
-      "sha256": "14e9e52db3fd26b77686bd954c7ed4946f7325d08dde3c79d98d5f304e60e557"
+      "sha256": "d1cbca86714293d6399d319b6eb499600c7385dcf4d7699a2568fd245328568c"
     }
   }
 }

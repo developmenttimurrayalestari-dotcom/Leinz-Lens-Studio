@@ -1,6 +1,6 @@
 (() => {
   'use strict';
-  const VERSION = '2.1.1';
+  const VERSION = '2.2.0';
   const STATE_KEY = 'leinz-lens-studio-state-v1';
   const SAVED_KEY = 'leinz-lens-studio-saved-v1';
   const INDICES = ['1.50','1.56','1.57','1.60','1.67','1.74'];
@@ -14,7 +14,7 @@
   const baseCamera = () => ({yaw:-.62,pitch:.12,zoom:1});
   const angle = (value,fallback=0) => Number.isFinite(Number(value)) ? Math.atan2(Math.sin(Number(value)),Math.cos(Number(value))) : fallback;
   const normalizeCamera = (input={},fallback=baseCamera()) => ({yaw:angle(input?.yaw,fallback.yaw),pitch:angle(input?.pitch,fallback.pitch),zoom:clamp(input?.zoom,.55,2.6,fallback.zoom)});
-  const freshState = () => ({active:'a',optics:{useOverride:false,profile:defaultOpticalProfile()},showFrame:true,showTemples:true,frameStyle:'full-rim',shape:'001',width:52,height:38,dbl:18,sph:-4,cyl:-1,axis:180,add:0,pdR:31.5,pdL:31.5,heightR:19,heightL:19,allowanceDiameter:2,sync:true,camera:baseCamera(),a:{index:'1.74',productId:'DMO:SPHW74',skuId:null,blankIdR:null,blankIdL:null,tintCode:'09S',note:'',customColor:'#9b7965'},b:{index:'1.50',productId:'SOA:SPHW50',skuId:null,blankIdR:null,blankIdL:null,tintCode:'09S',note:'',customColor:'#9b7965'}});
+  const freshState = () => ({active:'a',uvExposure:0,optics:{useOverride:false,profile:defaultOpticalProfile()},showFrame:true,showTemples:true,frameStyle:'full-rim',shape:'001',width:52,height:38,dbl:18,sph:-4,cyl:-1,axis:180,add:0,pdR:31.5,pdL:31.5,heightR:19,heightL:19,allowanceDiameter:2,sync:true,camera:baseCamera(),a:{photochromic:false,index:'1.74',productId:'DMO:SPHW74',skuId:null,blankIdR:null,blankIdL:null,tintCode:'09S',note:'',customColor:'#9b7965'},b:{photochromic:false,index:'1.50',productId:'SOA:SPHW50',skuId:null,blankIdR:null,blankIdL:null,tintCode:'09S',note:'',customColor:'#9b7965'}});
   const icons = {
     search:'<circle cx="10.8" cy="10.8" r="6.5"/><path d="m16 16 4.6 4.6"/>',
     download:'<path d="M12 3v12m-4-4 4 4 4-4M4 16v4h16v-4"/>',
@@ -27,7 +27,7 @@
   };
   function installIcons(root=document){$$('[data-icon]',root).forEach(el=>{el.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true">'+(icons[el.dataset.icon]||'')+'</svg>';});}
   let data, state, skuManager, masterManager, currentManageTab='materials', currentManageDetail=null, frameFit, evaluations={}, previewMetrics={}, viewers={}, tintMap, productMap, blankMap, saved=[], currentTab='studio', filterKind='all',filterGroup='all',search='',materialMode='candidates',storageOK=true,toastTimer,saveTimer,autoRotating=false,settingRotation=false,lastCameraUpdate=0,cameraStatusTimer=null,currentView='perspective';
-  let storage, stateChangeSerial=0, stateSavedSerial=0, savingHistory=false, pendingConsultationImport=null,allowDiscardOnReload=false;
+  let storage, stateChangeSerial=0, stateSavedSerial=0, savingHistory=false, pendingConsultationImport=null,allowDiscardOnReload=false,batchRows=[],batchResults=[];
   function toast(message){const el=$('#toast');el.textContent=message;el.classList.add('visible');clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.classList.remove('visible'),3500);}
   function readStorage(key,fallback){try{const x=storage.getItem(key);return x?JSON.parse(x):fallback;}catch{return fallback;}}
   async function writeStorage(key,value){try{await storage.setItem(key,JSON.stringify(value));storageOK=true;return true;}catch{storageOK=false;return false;}}
@@ -144,6 +144,7 @@ function rebuildMasterMaps(){
     const previousShape=s.shape;
     s.active=s.active==='b'?'b':'a';s.shape=data.shapes.items.some(x=>x.code===s.shape)?s.shape:(previousShape==='browline'&&data.shapes.items.some(x=>x.code==='round')?'round':data.shapes.items.find(x=>x.active!==false).code);s.sync=s.sync!==false;
     s.showFrame=s.showFrame!==false;s.showTemples=s.showTemples!==false;
+    s.uvExposure=clamp(s.uvExposure,0,100,0);
     s.frameStyle=Object.hasOwn(FRAME_STYLES,s.frameStyle)?s.frameStyle:'full-rim';
     const profileCheck=LeinzCatalogModel.validateOpticalProfile(s.optics?.profile||defaultOpticalProfile());
     s.optics={useOverride:s.optics?.useOverride===true&&profileCheck.ok,profile:{...defaultOpticalProfile(),...(profileCheck.ok?profileCheck.value:{})}};
@@ -164,7 +165,8 @@ function rebuildMasterMaps(){
       v.skuId=typeof v.skuId==='string'&&v.skuId?v.skuId:null;
       if(!v.skuId&&(!productMap.has(v.productId)||productMap.get(v.productId).index!==v.index))v.productId=defaultProductFor(v.index)?.id||'';
       for(const eye of ['R','L'])if(typeof v['blankId'+eye]!=='string')v['blankId'+eye]=null;
-      if(v.tintCode!==null&&!tintMap.has(v.tintCode))v.tintCode=null;
+      v.photochromic=v.photochromic===true;
+      if(v.photochromic||(v.tintCode!==null&&!tintMap.has(v.tintCode)))v.tintCode=null;
       v.note=String(v.note||'').slice(0,800);v.customColor=/^#[0-9a-f]{6}$/i.test(v.customColor)?v.customColor:'#9b7965';v.camera=normalizeCamera(v.camera||s.camera,s.camera);
     }if(s.sync){s.a.camera={...s.camera};s.b.camera={...s.camera};}return s;
   }
@@ -213,10 +215,10 @@ function rebuildMasterMaps(){
     $('#index-select').innerHTML=indexOptions(key);for(const k of ['a','b'])$('#index-'+k).innerHTML=indexOptions(k);
     const rows=productsForSlot(key),p=productMap.get(slot.productId);
     $('#product-select').innerHTML=(!rows.some(x=>x.id===slot.productId)?'<option selected disabled value="'+esc(slot.productId)+'">'+esc(p?p.code+(p.active===false?' · diarsipkan':' · tidak di-assign'):'Belum ada produk tersedia')+'</option>':'')+rows.map(p=>'<option value="'+esc(p.id)+'" '+(p.id===slot.productId?'selected':'')+'>'+esc(materialLabel(p))+'</option>').join('');
-    const ev=evaluations[key];$('#sku-power-status').textContent=slot.skuId?(rangeText(skuVariantFor(key))+(!ev.skuPowerAllowed?' · Resep di luar rentang finish.':'')):'Kecocokan power mengikuti rentang bahan pada CSV.';$('#sku-power-status').classList.toggle('invalid-text',!!slot.skuId&&!ev.skuPowerAllowed);
+    const ev=evaluations[key];$('#sku-power-status').textContent=slot.skuId?(rangeText(skuVariantFor(key))+(!ev.skuPowerAllowed?' · Resep di luar rentang finish.':'')):'Kecocokan power mengikuti aturan bahan pada master.';$('#sku-power-status').classList.toggle('invalid-text',!!slot.skuId&&!ev.skuPowerAllowed);
     for(const eye of ['R','L']){const low=eye.toLowerCase(),candidates=ev.rows.filter(r=>r['eligible'+eye]),chosen=blankMap.get(slot['blankId'+eye]);$('#blank-'+low).innerHTML='<option value="">'+(candidates.length?'Pilih blank · '+candidates.length+' kandidat':'Tidak ada kandidat yang lolos')+'</option>'+candidates.map(({blank:b})=>'<option value="'+esc(b.id)+'" '+(b.id===slot['blankId'+eye]?'selected':'')+'>Ø '+fmt(b.diameter,0)+' · BC '+fmt(b.baseCurve)+' · CT '+fmt(b.ct)+' / ET '+fmt(b.et)+'</option>').join('');$('#blank-'+low).disabled=!candidates.length;$('#blank-detail-'+low).textContent=chosen?'Bahan baku: CT '+fmt(chosen.ct)+' mm · ET '+fmt(chosen.et)+' mm. Belum ketebalan lensa jadi.':(frameFit.valid?'Kebutuhan Ø '+fmt(frameFit.eyes[eye].requiredDiameter)+' mm. '+(ev.summary['minDiameter'+eye]!==null?'Diameter kandidat terkecil '+fmt(ev.summary['minDiameter'+eye],0)+' mm.':'Belum ada diameter yang memenuhi semua aturan.'):'Perbaiki data frame atau sentrasi.');}
   }
-  function sameTint(){return state.a.tintCode===state.b.tintCode&&(!isCustom(selectedTint('a'))||state.a.customColor.toLowerCase()===state.b.customColor.toLowerCase());}
+  function sameTint(){return state.a.photochromic===state.b.photochromic&&state.a.tintCode===state.b.tintCode&&(!isCustom(selectedTint('a'))||state.a.customColor.toLowerCase()===state.b.customColor.toLowerCase());}
   function cameraStatus(force=false){const now=Date.now();if(!force&&now-lastCameraUpdate<100){if(cameraStatusTimer===null)cameraStatusTimer=setTimeout(()=>{cameraStatusTimer=null;cameraStatus(true);},100-(now-lastCameraUpdate));return;}clearTimeout(cameraStatusTimer);cameraStatusTimer=null;lastCameraUpdate=now;const c=viewers[state.active]?.getCamera()||state[state.active].camera;const degrees=v=>Math.round(((v*180/Math.PI)%360+360)%360)%360;$('#rotation-angle').textContent='H '+degrees(c.yaw)+'° · V '+degrees(c.pitch)+'°';}
   function setRotation(enabled){
     settingRotation=true;autoRotating=!!enabled;
@@ -231,14 +233,20 @@ function rebuildMasterMaps(){
     if(currentView!=='custom'){currentView='custom';$$('[data-view]').forEach(x=>x.classList.remove('active'));}
     cameraStatus();if(!autoRotating)persist();
   }
-  function selectedTint(key=state.active){return tintMap.get(state[key].tintCode)||null;}
+  function selectedTint(key=state.active){return state[key].photochromic?null:tintMap.get(state[key].tintCode)||null;}
+  function photoAppearance(key){return LeinzPhotochromic.getAppearance(state[key].photochromic,state.uvExposure);}
+  function lensName(key){return state[key].photochromic?'Photochromic · abu-abu':tintName(selectedTint(key));}
+  function lensMeta(key){return state[key].photochromic?'UV '+fmt(state.uvExposure,0)+'% · gelap visual '+fmt(photoAppearance(key).visualDarknessPercent,0)+'%':tintMeta(selectedTint(key));}
   function isCustom(t){return !!t&&['CON','CONG','NOTE'].includes(t.code);}
   function appearance(key){
-    const slot=state[key],t=selectedTint(key);if(!t)return {top:null,mid:null,bottom:null,available:true,kind:'Solid'};
+    const slot=state[key],t=selectedTint(key);
+    if(slot.photochromic){const a=photoAppearance(key);return {top:a.colorHex,mid:null,bottom:a.colorHex,available:true,kind:'Solid'};}
+    if(!t)return {top:null,mid:null,bottom:null,available:true,kind:'Solid'};
     if(isCustom(t))return {top:slot.customColor,mid:null,bottom:t.kind==='Gradient'?'#FFFFFF':slot.customColor,available:true,kind:t.kind};
     return {top:t.previewHex,mid:t.previewMidHex,bottom:t.previewBottomHex,available:!!t.previewHex,kind:t.kind};
   }
   function swatchBackground(t,key){
+    if(key&&state[key].photochromic)return photoAppearance(key).colorHex||'linear-gradient(135deg,#fbfdfb,#e8eee7)';
     if(!t)return 'linear-gradient(135deg,#fbfdfb,#e8eee7)';
     const custom=key&&isCustom(t), top=custom?state[key].customColor:t.previewHex, bottom=custom?(t.kind==='Gradient'?'#ffffff':top):t.previewBottomHex;
     if(!top)return 'repeating-linear-gradient(135deg,#eeede6,#eeede6 5px,#f6f6f0 5px,#f6f6f0 10px)';
@@ -288,21 +296,61 @@ function rebuildMasterMaps(){
     const key=state.active, slot=state[key],t=selectedTint();
     $$('.active-slot-letter,.active-slot-letter-text').forEach(x=>x.textContent=key.toUpperCase());
     $$('.pair-product-switch [data-slot]').forEach(el=>{el.classList.toggle('active',el.dataset.slot===key);el.setAttribute('aria-pressed',String(el.dataset.slot===key));});
-    renderSkuControls();renderFrameControls();renderOpticsControls();
+    renderSkuControls();renderFrameControls();renderOpticsControls();renderPhotochromicControls();
     $('#comparison-indices').textContent='A · '+state.a.index+' (R/L) ↔ B · '+state.b.index+' (R/L)';
-    $('#comparison-hint').textContent='Bandingkan pasangan A dengan pasangan B. Satu indeks berlaku untuk R dan L dalam setiap pilihan. '+(state.a.index===state.b.index?'Saat ini kedua pasangan memakai indeks yang sama.':sameTint()?'Warna kedua pasangan sama.':'Gunakan Samakan warna untuk menyamakan tint kedua pasangan.');
+    $('#comparison-hint').textContent='Bandingkan pasangan A dengan pasangan B. Satu indeks berlaku untuk R dan L dalam setiap pilihan. '+((state.a.photochromic||state.b.photochromic)?'Paparan UV sama diterapkan pada setiap pasangan photochromic.':state.a.index===state.b.index?'Saat ini kedua pasangan memakai indeks yang sama.':sameTint()?'Warna kedua pasangan sama.':'Gunakan Samakan warna untuk menyamakan tint kedua pasangan.');
     const exampleAllowed=indicesFor('a').includes('1.74')&&indicesFor('b').includes('1.50');$('#pair-example').disabled=!exampleAllowed;$('#pair-example').title=exampleAllowed?'Terapkan indeks 1.74 untuk pasangan A dan 1.50 untuk pasangan B':'Contoh ini memerlukan indeks 1.74 pada SKU A dan 1.50 pada SKU B';
-    $('#match-tints').title='Salin warna pilihan '+key.toUpperCase()+' ke pilihan '+(key==='a'?'B':'A');
-    $('#selected-tint').innerHTML='<div class="selected-tint-inner"><span class="large-swatch" style="background:'+swatchBackground(t,key)+'"></span><div><strong>'+esc(tintName(t))+'</strong><small>'+esc(tintMeta(t))+'</small></div></div>';
-    const note=$('#reference-warning');note.hidden=!t;note.className='reference-note'+(t&&['percent-conflict','category-conflict','missing'].includes(t.referenceStatus)?' warning':'');
-    if(t)note.textContent=(t.active===false?'Tint diarsipkan; masih ditampilkan untuk referensi konsultasi ini. ':'')+(isCustom(t)?'Warna digital dipilih pengguna sebagai ilustrasi konsultasi. '+(t.requiresPhysicalSample?'Acuan produksi tetap memerlukan contoh lensa fisik.':'Sertakan catatan untuk lab. Untuk warna di luar katalog, contoh lensa fisik tetap diperlukan.'):t.referenceNote);
-    $('#custom-tint').hidden=!isCustom(t);$('#custom-color').value=slot.customColor;$('#custom-color-value').textContent=slot.customColor.toUpperCase();
-    $('#physical-sample-note').textContent=t?.requiresPhysicalSample?'Contoh lensa fisik diperlukan sesuai petunjuk lembar referensi.':'Warna di luar katalog memerlukan contoh lensa fisik. Kode NOTE tetap mengikuti katalog.';
-    $('#tint-note').value=slot.note;
+    renderAppearanceControls();
     for(const [id,k]of Object.entries(inputMap))$('#'+id).value=state[k];
     $('#m-shape').innerHTML=[['Varian tambahan',data.shapes.items.filter(s=>(s.active!==false||s.code===state.shape)&&isShapePreset(s))],['Referensi Lensware · 001–009',data.shapes.items.filter(s=>(s.active!==false||s.code===state.shape)&&!isShapePreset(s))]].map(([label,items])=>'<optgroup label="'+label+'">'+items.map(x=>'<option value="'+esc(x.code)+'" '+(x.code===state.shape?'selected':'')+'>'+esc(shapeName(x)+(x.active===false?' · diarsipkan':''))+'</option>').join('')+'</optgroup>').join('');
     $('#studio-shape').innerHTML=$('#m-shape').innerHTML;$('#studio-shape').value=state.shape;
     $('#sync-camera').checked=state.sync;renderShapes();cameraStatus(true);
+  }
+  function renderAppearanceControls(){
+    const key=state.active,slot=state[key],t=selectedTint(key);
+    $('#selected-tint').innerHTML='<div class="selected-tint-inner"><span class="large-swatch" style="background:'+swatchBackground(t,key)+'"></span><div><strong>'+esc(lensName(key))+'</strong><small>'+esc(lensMeta(key))+'</small></div></div>';
+    const note=$('#reference-warning');note.hidden=!t&&!slot.photochromic;note.className='reference-note'+(t&&['percent-conflict','category-conflict','missing'].includes(t.referenceStatus)?' warning':'');
+    if(slot.photochromic)note.textContent='Tint dinonaktifkan untuk pasangan '+key.toUpperCase()+'. Matikan photochromic pada kartu preview untuk memilih tint.';
+    else if(t)note.textContent=(t.active===false?'Tint diarsipkan; masih ditampilkan untuk referensi konsultasi ini. ':'')+(isCustom(t)?'Warna digital dipilih pengguna sebagai ilustrasi konsultasi. '+(t.requiresPhysicalSample?'Acuan produksi tetap memerlukan contoh lensa fisik.':'Sertakan catatan untuk lab. Untuk warna di luar katalog, contoh lensa fisik tetap diperlukan.'):t.referenceNote);
+    $('#custom-tint').hidden=!isCustom(t);$('#custom-color').value=slot.customColor;$('#custom-color-value').textContent=slot.customColor.toUpperCase();
+    $('#physical-sample-note').textContent=t?.requiresPhysicalSample?'Contoh lensa fisik diperlukan sesuai petunjuk lembar referensi.':'Warna di luar katalog memerlukan contoh lensa fisik. Kode NOTE tetap mengikuti katalog.';
+    $('#tint-note').value=slot.note;
+    $('#selected-coating-label').textContent=(slot.photochromic?'Photochromic':'Tint terpilih')+' · '+key.toUpperCase();
+    $('#clear-tint').disabled=slot.photochromic;$('#clear-tint').hidden=slot.photochromic;
+    $('#custom-color').disabled=slot.photochromic;
+    $('#lens-note-label').firstChild.textContent=slot.photochromic?'Catatan photochromic ':'Catatan tint ';
+  }
+  function renderPhotochromicControls(){
+    const enabled=['a','b'].filter(key=>state[key].photochromic),uv=state.uvExposure;
+    $('#uv-controls').disabled=!enabled.length;
+    $('#uv-exposure').value=uv;$('#uv-value').textContent=fmt(uv,0)+'%';
+    $('#uv-exposure').setAttribute('aria-valuetext',fmt(uv,0)+' persen paparan UV simulasi');
+    $('#uv-status').textContent=enabled.length?'Berlaku untuk photochromic '+enabled.map(key=>key.toUpperCase()).join(' + ')+'. Geser UV untuk menggelapkan atau menjernihkan lensa.':'Centang Photochromic pada pasangan A atau B untuk memulai.';
+    $('#uv-panel').classList.toggle('uv-enabled',!!enabled.length);
+    $('#uv-panel').style.setProperty('--uv-level',String(uv/100));
+    $$('[data-uv-preset]').forEach(el=>{el.classList.toggle('active',Number(el.dataset.uvPreset)===uv);el.setAttribute('aria-pressed',String(Number(el.dataset.uvPreset)===uv));});
+    for(const key of ['a','b']){
+      $('#photochromic-'+key).checked=state[key].photochromic;
+      $('#photo-state-'+key).textContent=state[key].photochromic?(uv===0?'Bening · UV 0%':'Gelap visual '+fmt(photoAppearance(key).visualDarknessPercent,0)+'%'):'Tint tersedia';
+      $('#card-'+key).classList.toggle('photochromic-active',state[key].photochromic);
+    }
+    $('#tint-mode-lock').hidden=!state[state.active].photochromic;
+    $('#tint-mode-lock').textContent='Pasangan '+state.active.toUpperCase()+' menggunakan photochromic. Matikan mode tersebut pada preview untuk memilih tint.';
+    $('#match-tints').disabled=!!enabled.length;
+    $('#match-tints').title=enabled.length?'Samakan warna tersedia saat photochromic A dan B tidak aktif.':'Salin warna pilihan '+state.active.toUpperCase()+' ke pilihan '+(state.active==='a'?'B':'A');
+  }
+  function updateAppearanceOnly(){
+    for(const key of ['a','b']){
+      const a=appearance(key);
+      viewers[key].setOptions({colorHex:a.top,midColorHex:a.mid,bottomColorHex:a.bottom,kind:a.kind,photochromicStrength:state[key].photochromic?state.uvExposure/100:null,visualStrength:1});
+      $('#name-'+key).textContent=lensName(key);$('#meta-'+key).textContent=lensMeta(key);
+      $('#caption-swatch-'+key).style.background=swatchBackground(selectedTint(key),key);
+    }
+  }
+  function setUV(value){
+    if(!state.a.photochromic&&!state.b.photochromic)return;
+    const next=clamp(value,0,100,state.uvExposure);if(next===state.uvExposure)return;
+    state.uvExposure=next;renderPhotochromicControls();renderAppearanceControls();updateAppearanceOnly();persist();
   }
   function mmRange(low,high){
     if(!Number.isFinite(low)||!Number.isFinite(high))return '—';
@@ -331,9 +379,9 @@ function rebuildMasterMaps(){
     for(const key of ['a','b']){
       const slot=state[key],t=selectedTint(key),a=appearance(key),active=key===state.active;
       $('#card-'+key).classList.toggle('selected',active);$('#card-'+key+' .lens-card-header').setAttribute('aria-pressed',String(active));$('#card-'+key+' .edit-label').textContent=active?'Sedang dipilih':'Pilih untuk ubah';
-      $('#pair-title-'+key).textContent='Pilihan '+key.toUpperCase()+' · '+slot.index;$('#index-label-'+key).textContent='Sepasang kanan + kiri';$('#pair-scope-'+key).textContent='R + L · keduanya indeks '+slot.index;$('#canvas-'+key).setAttribute('aria-label','Pilihan '+key.toUpperCase()+': L di kiri layar dan R di kanan layar, keduanya indeks '+slot.index+'. Geser untuk rotasi 360 derajat atau gulir untuk zoom.');$('#name-'+key).textContent=tintName(t);$('#meta-'+key).textContent=tintMeta(t);$('#caption-swatch-'+key).style.background=swatchBackground(t,key);
+      $('#pair-title-'+key).textContent='Pilihan '+key.toUpperCase()+' · '+slot.index;$('#index-label-'+key).textContent='Sepasang kanan + kiri';$('#pair-scope-'+key).textContent='R + L · keduanya indeks '+slot.index;$('#canvas-'+key).setAttribute('aria-label','Pilihan '+key.toUpperCase()+': L di kiri layar dan R di kanan layar, keduanya indeks '+slot.index+'. Geser untuk rotasi 360 derajat atau gulir untuk zoom.');$('#name-'+key).textContent=lensName(key);$('#meta-'+key).textContent=lensMeta(key);$('#caption-swatch-'+key).style.background=swatchBackground(t,key);
       $('#overlay-'+key).hidden=a.available;if(!a.available)$('#overlay-'+key).textContent=t?.referenceStatus==='percent-conflict'?'Pratinjau warna ditunda: CSV 70%, PDF 80%.':'Kode tersedia. Belum ada swatch warna untuk ditampilkan.';
-      viewers[key].setOptions({shapePoints:shape.points,contourMode:shapeContourMode(shape),widthMm:state.width,heightMm:state.height,bridgeMm:state.dbl,pairMode:true,eyeLayout:'wearer',showFrame:state.showFrame,showTemples:state.showTemples,frameStyle:state.frameStyle,showMeasurements:true,measurementsValid:frameFit.valid,opticalCenters:frameFit.valid?{R:frameFit.eyes.R.opticalCenter,L:frameFit.eyes.L.opticalCenter}:{R:{x:0,y:0},L:{x:0,y:0}},sph:state.sph,cyl:state.cyl,axis:state.axis,index:Number(slot.index),colorHex:a.top,bottomColorHex:a.bottom,midColorHex:a.mid,kind:a.kind,visualStrength:1,opticalProfiles:{R:opticalProfileFor(key,'R'),L:opticalProfileFor(key,'L')}});
+      viewers[key].setOptions({shapePoints:shape.points,contourMode:shapeContourMode(shape),widthMm:state.width,heightMm:state.height,bridgeMm:state.dbl,pairMode:true,eyeLayout:'wearer',showFrame:state.showFrame,showTemples:state.showTemples,frameStyle:state.frameStyle,showMeasurements:true,measurementsValid:frameFit.valid,opticalCenters:frameFit.valid?{R:frameFit.eyes.R.opticalCenter,L:frameFit.eyes.L.opticalCenter}:{R:{x:0,y:0},L:{x:0,y:0}},sph:state.sph,cyl:state.cyl,axis:state.axis,index:Number(slot.index),colorHex:a.top,bottomColorHex:a.bottom,midColorHex:a.mid,kind:a.kind,photochromicStrength:state[key].photochromic?state.uvExposure/100:null,visualStrength:1,opticalProfiles:{R:opticalProfileFor(key,'R'),L:opticalProfileFor(key,'L')}});
       previewMetrics[key]=frameFit.valid?viewers[key].getThicknessMetrics():null;
       $('#measurements-'+key).innerHTML=measurementsMarkup(key);
       const values=measurementValues(key);
@@ -346,7 +394,7 @@ function rebuildMasterMaps(){
     const q=search.trim().toLowerCase(),active=state[state.active].tintCode;
     const rows=data.tints.items.filter(t=>t.active!==false&&(filterKind==='all'||t.kind===filterKind)&&(filterGroup==='all'||t.group===filterGroup)&&(!q||[t.code,t.name,t.kind,t.group].join(' ').toLowerCase().includes(q)));
     $('#results-count').textContent=rows.length+' pilihan';
-    $('#tint-grid').innerHTML=rows.length?rows.map(t=>'<button class="tint-card '+(t.code===active?'active':'')+'" data-tint="'+esc(t.code)+'" aria-label="Pilih '+esc(t.code+' '+t.name)+' untuk pilihan '+state.active.toUpperCase()+'" aria-pressed="'+(t.code===active)+'" title="'+esc(t.referenceNote)+'"><div class="swatch-wrap"><span class="swatch-lens '+(!t.previewHex?'swatch-missing':'')+'" style="background:'+swatchBackground(t)+'">'+(!t.previewHex?'?':'')+'</span>'+(t.code===active?'<span class="selected-indicator">✓</span>':'')+'</div><span class="tint-code">'+esc(t.code)+'</span><strong>'+esc(t.name)+'</strong><span class="tint-kind">'+(t.kind==='Gradient'?'Gradasi':'Solid')+(t.nominalPercent!==null?' · '+t.nominalPercent+'%':'')+'</span>'+(['percent-conflict','category-conflict','missing'].includes(t.referenceStatus)?'<span class="warning-dot" aria-label="Ada catatan referensi"></span>':'')+'</button>').join(''):'<div class="empty-state">Tidak ada tint yang sesuai pencarian.<br>Coba nama, kode, atau kategori lainnya.</div>';
+    $('#tint-grid').innerHTML=rows.length?rows.map(t=>'<button class="tint-card '+(t.code===active?'active':'')+'" data-tint="'+esc(t.code)+'" aria-label="Pilih '+esc(t.code+' '+t.name)+' untuk pilihan '+state.active.toUpperCase()+'" '+(state[state.active].photochromic?'disabled ':'')+'aria-pressed="'+(t.code===active)+'" title="'+esc(t.referenceNote)+'"><div class="swatch-wrap"><span class="swatch-lens '+(!t.previewHex?'swatch-missing':'')+'" style="background:'+swatchBackground(t)+'">'+(!t.previewHex?'?':'')+'</span>'+(t.code===active?'<span class="selected-indicator">✓</span>':'')+'</div><span class="tint-code">'+esc(t.code)+'</span><strong>'+esc(t.name)+'</strong><span class="tint-kind">'+(t.kind==='Gradient'?'Gradasi':'Solid')+(t.nominalPercent!==null?' · '+t.nominalPercent+'%':'')+'</span>'+(['percent-conflict','category-conflict','missing'].includes(t.referenceStatus)?'<span class="warning-dot" aria-label="Ada catatan referensi"></span>':'')+'</button>').join(''):'<div class="empty-state">Tidak ada tint yang sesuai pencarian.<br>Coba nama, kode, atau kategori lainnya.</div>';
     $$('[data-kind]').forEach(x=>{x.classList.toggle('active',x.dataset.kind===filterKind);x.setAttribute('aria-pressed',String(x.dataset.kind===filterKind));});
     $$('[data-group]').forEach(x=>{x.classList.toggle('active',x.dataset.group===filterGroup);x.setAttribute('aria-pressed',String(x.dataset.group===filterGroup));});
   }
@@ -366,7 +414,32 @@ function rebuildMasterMaps(){
     return '<article class="cutout-card '+(!available?'blocked':'')+'"><div class="cutout-heading"><strong>'+eye+' · '+(eye==='R'?'Kanan':'Kiri')+'</strong><span>'+esc(title)+'</span></div>'+svg+'<p>Minimum geometris '+fmt(e.geometricDiameter)+' + '+fmt(state.allowanceDiameter,1)+' allowance = <strong>'+fmt(e.requiredDiameter)+' mm</strong></p><small>Pergeseran OC: horizontal '+fmt(oc.x)+' · vertikal '+fmt(oc.y)+' mm</small></article>';
   }
   function rowEyeMarkup(row,eye){const selected=state[state.active]['blankId'+eye]===row.blank.id;if(row['eligible'+eye])return '<button class="blank-pick '+(selected?'selected':'')+'" data-pick-blank="'+esc(row.blank.id)+'" data-eye="'+eye+'" aria-pressed="'+selected+'">'+(selected?'✓ Terpilih':'Pilih '+eye)+'</button><small>Sisa Ø '+fmt(row['sizeMargin'+eye])+' mm</small>';return '<span class="fit-badge no">Belum lolos</span><small>'+esc(row['reasons'+eye].map(c=>BlankEngine.reasonLabels[c]||c).join(' '))+'</small>';}
+  function evaluateBatch(){
+    return LeinzBlankBatch.evaluate(batchRows,{materials:data.materials,frame:frameFit,choices:['a','b'].map(key=>({key,index:state[key].index,productId:state[key].productId,skuVariant:skuVariantFor(key)}))});
+  }
+  function batchCell(choice){
+    const m=choice.summary,good=choice.status==='lolos';
+    const reasons=choice.errors.length?choice.errors.map(x=>x.message):choice.reasons.map(reason=>BlankEngine.reasonLabels[reason]||reason);
+    const rules=[...new Set(choice.candidates.flatMap(row=>row.matchingRuleIds))];
+    return '<span class="fit-badge '+(good?'yes':'no')+'">'+(good?'Lolos R + L':choice.valid?'Belum lolos R + L':'Input belum valid')+'</span><strong>'+m.eligibleRCount+' R / '+m.eligibleLCount+' L</strong><small>Ø min. R '+(m.minDiameterR===null?'—':fmt(m.minDiameterR,0))+' / L '+(m.minDiameterL===null?'—':fmt(m.minDiameterL,0))+' mm</small>'+(!good?'<small class="batch-reason">'+esc(reasons.slice(0,2).join(' ')||'Belum ada blank yang memenuhi.')+'</small>':'<small>'+rules.length+' aturan cocok pada kandidat</small>');
+  }
+  function renderBatch(){
+    if(!batchRows.length)batchRows.push({sph:state.sph,cyl:state.cyl,add:state.add});
+    batchResults=evaluateBatch();
+    $('#batch-context').textContent=['a','b'].map(key=>key.toUpperCase()+' · indeks '+state[key].index+' · '+(productMap.get(state[key].productId)?.code||'produk belum dipilih')+' · '+(selectedSku(key)?.code||'tanpa SKU')).join('  |  ');
+    $('#batch-rows').innerHTML=batchRows.map((row,i)=>'<tr><th scope="row">'+(i+1)+'</th>'+['sph','cyl','add'].map(field=>'<td><input type="number" data-batch-row="'+i+'" data-batch-field="'+field+'" step="0.25" '+(field==='cyl'?'max="0"':field==='add'?'min="0"':'')+' value="'+esc(row[field]??'')+'" aria-label="'+field.toUpperCase()+' resep '+(i+1)+'"></td>').join('')+batchResults[i].choices.map(choice=>'<td class="batch-result">'+batchCell(choice)+'</td>').join('')+'<td><button type="button" class="icon-button" data-batch-remove="'+i+'" aria-label="Hapus resep '+(i+1)+'" '+(batchRows.length===1?'disabled':'')+'>×</button></td></tr>').join('');
+    $('#batch-add').disabled=batchRows.length>=LeinzBlankBatch.MAX_ROWS;
+    $('#batch-count').textContent=batchRows.length+' / '+LeinzBlankBatch.MAX_ROWS+' resep · '+batchResults.filter(row=>row.choices.every(choice=>choice.status==='lolos')).length+' resep lolos pada kedua pasangan';
+  }
+  function downloadBatch(){
+    batchResults=evaluateBatch();
+    const rows=[['resep','sph','cyl','add','pilihan','indeks','produk','status','kandidat_R','kandidat_L','diameter_min_R_mm','diameter_min_L_mm','aturan_cocok','blank_cocok']];
+    for(const row of batchResults)for(const choice of row.choices)rows.push([row.label,row.prescription.sph,row.prescription.cyl,row.prescription.add,choice.key.toUpperCase(),choice.index,choice.productId,choice.status,choice.summary.eligibleRCount,choice.summary.eligibleLCount,choice.summary.minDiameterR??'',choice.summary.minDiameterL??'',[...new Set(choice.candidates.flatMap(candidate=>candidate.matchingRuleIds))].join(' | '),choice.candidates.map(candidate=>candidate.blankId).join(' | ')]);
+    const cell=value=>'"'+String(value??'').replace(/"/g,'""')+'"';
+    downloadBlob(new Blob(['\ufeff'+rows.map(row=>row.map(cell).join(',')).join('\r\n')+'\r\n'],{type:'text/csv;charset=utf-8'}),'leinz-uji-resep-'+timestamp()+'.csv');
+  }
   function renderMaterials(){
+    renderBatch();
     const key=state.active,p=productMap.get(state[key].productId),ev=evaluations[key],sku=selectedSku(key),issue=fitIssue(key),list=ev.rows.filter(r=>materialMode==='all'||r.eligibleR||r.eligibleL);
     $('#candidate-query').textContent=(sku?sku.code+' · ':state[key].skuId?'SKU tidak ditemukan · ':'Tanpa SKU · ')+(p?p.code+' · indeks '+p.index:'Produk belum dipilih')+' · SPH '+fmt(state.sph)+' / CYL '+fmt(state.cyl)+' / ADD '+fmt(state.add);
     $('#material-sku-range').textContent=state[key].skuId?'Rentang finish: '+rangeText(skuVariantFor(key)):'Mode katalog bahan: batas power finish SKU belum diterapkan.';
@@ -377,7 +450,7 @@ function rebuildMasterMaps(){
     $('#fit-metrics').innerHTML=frameFit.valid?metric('ED kontur',fmt(frameFit.ed)+' mm','Dari pusat boxing ke titik terjauh')+metric('Frame PD',fmt(frameFit.framePD,1)+' mm','A + DBL')+['R','L'].map(eye=>metric('Kebutuhan Ø '+eye,fmt(frameFit.eyes[eye].requiredDiameter)+' mm',ev.summary['minDiameter'+eye]!==null?'Kandidat terkecil Ø '+fmt(ev.summary['minDiameter'+eye],0)+' mm':'Tidak ada kandidat yang lolos')).join(''):metric('Data belum valid','—','Periksa tinggi sentrasi terhadap B frame');
     if(frameFit.valid){const extent=Math.max(frameFit.requiredDiameter,...['R','L'].map(e=>selectedBlank(key,e)?.diameter??ev.summary['minDiameter'+e]??Math.max(0,...ev.summary.availableDiameters)))/2+6;$('#cutout-grid').innerHTML=['R','L'].map(e=>cutoutMarkup(e,extent)).join('');}else $('#cutout-grid').innerHTML='';
     $('#candidate-rows').innerHTML=list.length?list.map(r=>{const b=r.blank,rows=r.sourceRows.length?r.sourceRows:r.allSourceRows;return '<tr><td>'+fmt(b.baseCurve)+'</td><td><strong>Ø '+fmt(b.diameter,0)+'</strong></td><td>'+fmt(b.ct)+'</td><td>'+fmt(b.et)+'</td><td>'+rowEyeMarkup(r,'R')+'</td><td>'+rowEyeMarkup(r,'L')+'</td><td><span class="fit-badge '+(r.rawPowerMatches?'yes':'no')+'">Power bahan '+(r.rawPowerMatches?'sesuai':'di luar')+'</span>'+(state[key].skuId?'<span class="fit-badge '+(r.skuAssignmentMatches?'yes':'no')+'">'+(r.skuAssignmentMatches?'Di-assign SKU':'Belum di-assign')+'</span>':'')+'<small title="'+esc(rows.join(', '))+'">'+(r.sourceRows.length?'Baris cocok: ':'Baris spesifikasi: ')+esc(rows.slice(0,6).join(', ')+(rows.length>6?' … ('+rows.length+' baris)':''))+'</small></td></tr>';}).join(''):'<tr><td colspan="7"><div class="empty-state">Tidak ada kandidat yang lolos untuk pilihan ini.<br>Lihat <button class="text-button" data-material-mode="all">Semua & alasan</button> untuk memeriksa setiap spesifikasi blank.</div></td></tr>';
-    $('#candidate-count').textContent=list.length+' dari '+ev.summary.productBlankCount+' spesifikasi produk · '+ev.summary.eligibleRCount+' kandidat R / '+ev.summary.eligibleLCount+' kandidat L. Diameter, CT, dan ET ditampilkan dalam mm (asumsi satuan CSV). BC belum diprioritaskan otomatis.';
+    $('#candidate-count').textContent=list.length+' dari '+ev.summary.productBlankCount+' spesifikasi produk · '+ev.summary.eligibleRCount+' kandidat R / '+ev.summary.eligibleLCount+' kandidat L. Diameter, CT, dan ET ditampilkan dalam mm. BC belum diprioritaskan otomatis.';
     $$('[data-material-mode]').forEach(x=>{x.classList.toggle('active',x.dataset.materialMode===materialMode);x.setAttribute('aria-pressed',String(x.dataset.materialMode===materialMode));});$$('.choice-switch [data-slot]').forEach(x=>{x.classList.toggle('active',x.dataset.slot===key);x.setAttribute('aria-pressed',String(x.dataset.slot===key));});
   }
   function renderAll(){recalculatePlanning();renderControls();updatePreview();renderCatalog();renderMaterials();renderManageSummary();persist();}
@@ -405,12 +478,12 @@ function rebuildMasterMaps(){
     window.scrollTo({top:0,behavior:'smooth'});
     if(currentTab==='studio')requestAnimationFrame(()=>{viewers.a.setOptions({});viewers.b.setOptions({});});
   }
-  function getSelection(key){const slot=state[key],t=selectedTint(key),p=productMap.get(slot.productId),a=appearance(key);return {choice:key.toUpperCase(),index:slot.index,indexAppliesTo:['R','L'],comparisonUnit:'lens-pair',displayConvention:'wearer-side-layout',screenEyeOrder:['L','R'],eyeMode:'paired-illustration-shared-prescription',sku:skuSnapshot(key),blankSelection:blankSnapshot(key),camera:{...slot.camera},product:p?{supplier:p.supplier,lensCode:p.code,name:p.name,index:p.index}:null,tint:t?{code:t.code,description:t.name,kind:t.kind,nominalPercent:t.nominalPercent,chartNominalPercent:t.chartNominalPercent??null,referenceStatus:t.referenceStatus,referenceNote:t.referenceNote,sourcePage:t.sourcePage,sourceRow:t.sourceRow,previewAvailable:a.available,previewColor:a.top,previewMidColor:a.mid,previewBottomColor:a.bottom,previewColorSource:isCustom(t)?'user-selected-consultation-color':a.available?(t.referenceStatus==='manual'?'managed-digital-reference':'PDF-screen-sample'):null,previewCalibrated:false,requiresPhysicalSample:t.code==='NOTE'?null:!!t.requiresPhysicalSample,physicalSampleCondition:t.requiresPhysicalSample?'required':t.code==='NOTE'?'required-if-color-outside-catalog':null}:null,note:slot.note,compatibilityWithMaterial:'not-verified',illustrativeThickness:previewMetrics[key]||null,finishedThickness:null,productionGeometry:null};}
+  function getSelection(key){const slot=state[key],t=selectedTint(key),p=productMap.get(slot.productId),a=appearance(key);return {choice:key.toUpperCase(),photochromic:photoAppearance(key),index:slot.index,indexAppliesTo:['R','L'],comparisonUnit:'lens-pair',displayConvention:'wearer-side-layout',screenEyeOrder:['L','R'],eyeMode:'paired-illustration-shared-prescription',sku:skuSnapshot(key),blankSelection:blankSnapshot(key),camera:{...slot.camera},product:p?{supplier:p.supplier,lensCode:p.code,name:p.name,index:p.index}:null,tint:t?{code:t.code,description:t.name,kind:t.kind,nominalPercent:t.nominalPercent,chartNominalPercent:t.chartNominalPercent??null,referenceStatus:t.referenceStatus,referenceNote:t.referenceNote,sourcePage:t.sourcePage,sourceRow:t.sourceRow,previewAvailable:a.available,previewColor:a.top,previewMidColor:a.mid,previewBottomColor:a.bottom,previewColorSource:isCustom(t)?'user-selected-consultation-color':a.available?(t.referenceStatus==='manual'?'managed-digital-reference':'PDF-screen-sample'):null,previewCalibrated:false,requiresPhysicalSample:t.code==='NOTE'?null:!!t.requiresPhysicalSample,physicalSampleCondition:t.requiresPhysicalSample?'required':t.code==='NOTE'?'required-if-color-outside-catalog':null}:null,note:slot.note,compatibilityWithMaterial:'not-verified',illustrativeThickness:previewMetrics[key]||null,finishedThickness:null,productionGeometry:null};}
   function skuSnapshot(key){const sku=selectedSku(key);return !state[key].skuId?null:{id:state[key].skuId,code:sku?.code||null,name:sku?.name||null,active:!!sku?.active,updatedAt:sku?.updatedAt||null,variant:JSON.parse(JSON.stringify(skuVariantFor(key))),issue:skuProblem(key)||null};}
   function blankSnapshot(key){const ev=evaluations[key];return {screeningStatus:ev.status,screeningIssue:fitIssue(key)||null,availability:'configured-catalog-not-live-stock',eyes:Object.fromEntries(['R','L'].map(eye=>{const b=selectedBlank(key,eye),row=b?ev.rows.find(r=>r.blank.id===b.id):null;return [eye,b?{...b,rawThickness:true,requiredDiameter:frameFit.eyes[eye].requiredDiameter,sizeMargin:row['sizeMargin'+eye],matchingRuleIds:row.matchingRuleIds,sourceRows:row.sourceRows}:null];})),eligibleDiameters:Object.fromEntries(['R','L'].map(eye=>[eye,[...new Set(ev.rows.filter(r=>r['eligible'+eye]).map(r=>r.blank.diameter))].sort((a,b)=>a-b)])),surfacingVolumeVerified:false};}
-  function payload(){return {schema:'trl-lens-consultation/1.3',applicationVersion:VERSION,storageMode:storage.mode,title:$('#consultation-title').value.trim()||'Pilihan lensa',createdAt:new Date().toISOString(),status:'consultation-draft',productionReady:false,lenswareConnected:false,preview:{comparisonUnit:'lens-pair',displayConvention:'wearer-side-layout',screenEyeOrder:['L','R'],indexScope:'one-index-for-both-eyes-in-each-choice',eyeMode:'paired-illustration-shared-prescription',eyes:['R','L'],rotationMode:'individual-lens-centers',cameraSynchronized:state.sync,sameTint:sameTint(),geometry:'spherical-toric-sag-with-per-eye-centration',optics:JSON.parse(JSON.stringify(state.optics)),productionCalibration:'not-validated',frameDisplay:{visible:state.showFrame,style:state.frameStyle,styleName:FRAME_STYLES[state.frameStyle],templesVisible:state.showFrame&&state.showTemples,templesEnabled:state.showTemples,illustrative:true}},frame:{shapeCode:state.shape,shapeName:shapeName(),shapeSource:selectedShape().source==='managed'?'managed-contour-shared-with-3D':selectedShape().source==='user-svg'?'traced-inner-aperture-from-user-svg-shared-with-3D':'smoothed-illustration-from-reference-screenshot-shared-with-3D',shapeReference:isShapePreset(selectedShape())?{file:selectedShape().sourceFile,sha256:selectedShape().sourceSha256,geometryRevision:selectedShape().geometryRevision,contourMode:shapeContourMode(),aspectRatio:selectedShape().referenceAspectRatio,indexBase:selectedShape().sourceIndexBase,pathIndex:selectedShape().sourcePathIndex,subpathIndex:selectedShape().sourceSubpathIndex,contour:selectedShape().sourceContour}:null,shapePresetDimensions:isShapePreset(selectedShape())?{a:selectedShape().defaultWidthMm,b:selectedShape().defaultHeightMm,unit:'mm'}:null,a:state.width,b:state.height,dbl:state.dbl,allowanceDiameter:state.allowanceDiameter,unit:'mm',screening:frameFit},prescription:{sph:state.sph,cyl:state.cyl,axis:state.axis,add:state.add,monocularPd:{R:state.pdR,L:state.pdL},fittingHeight:{R:state.heightR,L:state.heightL},scope:'one-test-prescription-shared-by-both-eyes-and-comparisons'},choices:[getSelection('a'),getSelection('b')],notes:['Screen preview is not a calibrated color measurement or VLT.','Thickness uses spherical-front/toric-rear sag with back-vertex power and explicit minimum CT/ET constraints; not validated against Lensware production.','Blank CT/ET is raw-material metadata, not finished thickness.','Diameter fit does not verify surfacing volume, base-curve priority, prism or design feasibility.','Raw power ranges are inclusive, CYL zero is literal, and mm is an assumed CSV unit.',(storage.mode==='mysql'?'SKU data is shared in MySQL; consultation history is scoped to the signed-in account. Configured availability is not actual inventory.':'SKU data is browser-local and configured availability is not actual inventory.')],sources:{masterStorage:storage.mode,masterRevision:storage.getCatalogRevision(),managedMasterChangesSupported:true,tints:'tint code lensware untuk umum.csv',colorReference:'LEMBAR CONTOH WARNA-REVISI-21-12-2023-CTP-EMBEDED-SAMPLE FILE VECTOR.pdf',rawMaterial:'DMO UNV OSA(1).csv'}};}
+  function payload(){return {schema:'trl-lens-consultation/1.4',applicationVersion:VERSION,storageMode:storage.mode,title:$('#consultation-title').value.trim()||'Pilihan lensa',createdAt:new Date().toISOString(),status:'consultation-draft',productionReady:false,lenswareConnected:false,preview:{uvExposure:state.uvExposure,comparisonUnit:'lens-pair',displayConvention:'wearer-side-layout',screenEyeOrder:['L','R'],indexScope:'one-index-for-both-eyes-in-each-choice',eyeMode:'paired-illustration-shared-prescription',eyes:['R','L'],rotationMode:'individual-lens-centers',cameraSynchronized:state.sync,sameTint:sameTint(),geometry:'spherical-toric-sag-with-per-eye-centration',optics:JSON.parse(JSON.stringify(state.optics)),productionCalibration:'not-validated',frameDisplay:{visible:state.showFrame,style:state.frameStyle,styleName:FRAME_STYLES[state.frameStyle],templesVisible:state.showFrame&&state.showTemples,templesEnabled:state.showTemples,illustrative:true}},frame:{shapeCode:state.shape,shapeName:shapeName(),shapeSource:selectedShape().source==='managed'?'managed-contour-shared-with-3D':selectedShape().source==='user-svg'?'traced-inner-aperture-from-user-svg-shared-with-3D':'smoothed-illustration-from-reference-screenshot-shared-with-3D',shapeReference:isShapePreset(selectedShape())?{file:selectedShape().sourceFile,sha256:selectedShape().sourceSha256,geometryRevision:selectedShape().geometryRevision,contourMode:shapeContourMode(),aspectRatio:selectedShape().referenceAspectRatio,indexBase:selectedShape().sourceIndexBase,pathIndex:selectedShape().sourcePathIndex,subpathIndex:selectedShape().sourceSubpathIndex,contour:selectedShape().sourceContour}:null,shapePresetDimensions:isShapePreset(selectedShape())?{a:selectedShape().defaultWidthMm,b:selectedShape().defaultHeightMm,unit:'mm'}:null,a:state.width,b:state.height,dbl:state.dbl,allowanceDiameter:state.allowanceDiameter,unit:'mm',screening:frameFit},prescription:{sph:state.sph,cyl:state.cyl,axis:state.axis,add:state.add,monocularPd:{R:state.pdR,L:state.pdL},fittingHeight:{R:state.heightR,L:state.heightL},scope:'one-test-prescription-shared-by-both-eyes-and-comparisons'},choices:[getSelection('a'),getSelection('b')],notes:['Photochromic darkening is an illustrative response to simulated UV (0–100), not measured VLT, UV Index, activation time or confirmed product availability. Tint is disabled on photochromic pairs.','Screen preview is not a calibrated color measurement or VLT.','Thickness uses spherical-front/toric-rear sag with back-vertex power and explicit minimum CT/ET constraints; not validated against Lensware production.','Blank CT/ET is raw-material metadata, not finished thickness.','Diameter fit does not verify surfacing volume, base-curve priority, prism or design feasibility.','Raw power ranges are inclusive, CYL zero is literal, and mm is an assumed CSV unit.',(storage.mode==='mysql'?'SKU data is shared in MySQL; consultation history is scoped to the signed-in account. Configured availability is not actual inventory.':'SKU data is browser-local and configured availability is not actual inventory.')],sources:{masterStorage:storage.mode,masterRevision:storage.getCatalogRevision(),managedMasterChangesSupported:true,tints:'tint code lensware untuk umum.csv',colorReference:'LEMBAR CONTOH WARNA-REVISI-21-12-2023-CTP-EMBEDED-SAMPLE FILE VECTOR.pdf',rawMaterial:data.materials.summary?.sourceFile||'Master bahan terkelola'}};}
   function snapshot(key){try{return viewers[key].toDataURL();}catch{return '';}}
-  function choiceMarkup(key,images){const t=selectedTint(key),slot=state[key],p=productMap.get(slot.productId),img=images?snapshot(key):'';return '<article class="summary-choice">'+(img?'<img src="'+img+'" alt="Ilustrasi pasangan R/L pilihan '+key.toUpperCase()+'">':'')+'<div><h3>Pasangan R/L '+key.toUpperCase()+' · '+esc(tintName(t))+'</h3><p><strong>'+esc(tintMeta(t))+'</strong></p><p>Indeks '+esc(slot.index)+' · '+esc(p?p.code:'')+'</p>'+measurementSummary(key)+'<p><strong>SKU:</strong> '+esc(selectedSku(key)?.code|| (slot.skuId?'Tidak tersedia':'Belum dipilih'))+'</p>'+['R','L'].map(eye=>{const b=selectedBlank(key,eye);return '<p><strong>Blank '+eye+':</strong> '+(b?'Ø '+fmt(b.diameter,0)+' · BC '+fmt(b.baseCurve)+' · CT '+fmt(b.ct)+' / ET '+fmt(b.et)+' mm (bahan baku)':'Belum dipilih')+'</p>';}).join('')+(fitIssue(key)?'<p>'+esc(fitIssue(key))+'</p>':'')+(t?'<p>'+esc(statusLabel(t))+' · '+esc(t.referenceNote)+'</p>':'')+(isCustom(t)?'<p>Warna digital pengguna: '+esc(slot.customColor.toUpperCase())+'. Acuan konsultasi.</p>':'')+(slot.note?'<p><strong>Catatan:</strong> '+esc(slot.note)+'</p>':'')+'</div></article>';}
+  function choiceMarkup(key,images){const t=selectedTint(key),slot=state[key],p=productMap.get(slot.productId),img=images?snapshot(key):'';return '<article class="summary-choice">'+(img?'<img src="'+img+'" alt="Ilustrasi pasangan R/L pilihan '+key.toUpperCase()+'">':'')+'<div><h3>Pasangan R/L '+key.toUpperCase()+' · '+esc(lensName(key))+'</h3><p><strong>'+esc(lensMeta(key))+'</strong></p><p>Indeks '+esc(slot.index)+' · '+esc(p?p.code:'')+'</p>'+measurementSummary(key)+'<p><strong>SKU:</strong> '+esc(selectedSku(key)?.code|| (slot.skuId?'Tidak tersedia':'Belum dipilih'))+'</p>'+['R','L'].map(eye=>{const b=selectedBlank(key,eye);return '<p><strong>Blank '+eye+':</strong> '+(b?'Ø '+fmt(b.diameter,0)+' · BC '+fmt(b.baseCurve)+' · CT '+fmt(b.ct)+' / ET '+fmt(b.et)+' mm (bahan baku)':'Belum dipilih')+'</p>';}).join('')+(fitIssue(key)?'<p>'+esc(fitIssue(key))+'</p>':'')+(t?'<p>'+esc(statusLabel(t))+' · '+esc(t.referenceNote)+'</p>':'')+(isCustom(t)?'<p>Warna digital pengguna: '+esc(slot.customColor.toUpperCase())+'. Acuan konsultasi.</p>':'')+(slot.note?'<p><strong>Catatan:</strong> '+esc(slot.note)+'</p>':'')+'</div></article>';}
   function summaryMarkup(images=true){return '<div class="summary-choices">'+choiceMarkup('a',images)+choiceMarkup('b',images)+'</div><div class="summary-details">Sepasang R/L pada setiap pilihan · resep uji sama untuk kedua mata<br>'+esc(shapeName())+' · '+esc(frameDescription())+'<br>A '+fmt(state.width,1)+' / B '+fmt(state.height,1)+' / DBL '+fmt(state.dbl,1)+' mm<br>SPH '+fmt(state.sph)+' · CYL '+fmt(state.cyl)+' · AXIS '+state.axis+' · ADD '+fmt(state.add)+'<br>PD R/L '+fmt(state.pdR,1)+' / '+fmt(state.pdL,1)+' mm · tinggi R/L '+fmt(state.heightR,1)+' / '+fmt(state.heightL,1)+' mm<br>'+(frameFit.valid?'Kebutuhan diameter R/L '+fmt(frameFit.eyes.R.requiredDiameter)+' / '+fmt(frameFit.eyes.L.requiredDiameter)+' mm, termasuk allowance total '+fmt(state.allowanceDiameter,1)+' mm.':'Data frame atau sentrasi belum valid.')+'</div>';}
   function showSummary(){setRotation(false);if(!$('#consultation-title').value)$('#consultation-title').value='Pilihan warna · '+new Date().toLocaleDateString('id-ID');$('#summary-content').innerHTML=summaryMarkup();$('#summary-dialog').showModal();}
   function downloadBlob(blob,name){const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);}
@@ -443,15 +516,19 @@ function rebuildMasterMaps(){
     canvas.width=1200;canvas.height=1240;ctx.fillStyle='#f7f8f3';ctx.fillRect(0,0,canvas.width,canvas.height);
     ctx.fillStyle='#30362b';ctx.font='32px Arial';ctx.fillText('LEINZ / LENS STUDIO',55,65);ctx.font='18px Arial';ctx.fillStyle='#838c78';ctx.fillText('Pilihan '+key.toUpperCase()+' · pasangan R/L indeks '+state[key].index+' · '+shapeName()+' · '+frameDescription(),55,102,1090);
     const ratio=original.width/original.height,w=Math.min(1090,650*ratio),h=w/ratio;ctx.drawImage(original,(1200-w)/2,140,w,h);
-    const t=selectedTint(key);ctx.fillStyle='#30362b';ctx.font='bold 28px Arial';ctx.fillText(tintName(t),55,835,1090);ctx.font='20px Arial';ctx.fillStyle='#7e8873';ctx.fillText(tintMeta(t)+' · indeks '+state[key].index,55,875,1090);
+    const t=selectedTint(key);ctx.fillStyle='#30362b';ctx.font='bold 28px Arial';ctx.fillText(lensName(key),55,835,1090);ctx.font='20px Arial';ctx.fillStyle='#7e8873';ctx.fillText(lensMeta(key)+' · indeks '+state[key].index,55,875,1090);
     ctx.fillStyle='#4c6241';ctx.font='bold 24px Arial';ctx.fillText('Ketebalan maksimum '+values.max+' mm · estimasi model 3D',55,930,1090);
     ctx.font='20px Arial';ctx.fillText('Lebar A '+fmt(state.width,1)+' mm   ·   Tinggi B '+fmt(state.height,1)+' mm   ·   DBL '+fmt(state.dbl,1)+' mm',55,972,1090);
     ctx.font='18px Arial';ctx.fillText('CT pusat '+values.center+' mm   ·   ET tepi '+values.edge+' mm',55,1010,1090);
     ctx.fillStyle='#7e8873';ctx.font='16px Arial';ctx.fillText('Model sag sferis/torik dengan minimum CT/ET dan curve depan sesuai parameter.',55,1060,1090);ctx.fillText('Ketebalan maksimum adalah nilai terbesar pada pasangan; CT/ET berupa rentang bila berbeda.',55,1090,1090);ctx.fillText('Model belum dikalibrasi terhadap hasil produksi Lensware; CT/ET blank adalah data terpisah.',55,1120,1090);
+    if(state[key].photochromic){ctx.fillStyle='#6e647c';ctx.fillText('Paparan UV dan tingkat gelap adalah simulasi visual, bukan pengukuran VLT atau waktu aktivasi.',55,1150,1090);}
     if(!appearance(key).available){ctx.fillStyle='#8b632d';ctx.fillText('Kode ini belum memiliki pratinjau warna yang tervalidasi dari referensi.',55,1150,1090);}
-    canvas.toBlob(blob=>{if(blob)downloadBlob(blob,'leinz-'+key+'-'+(t?.code||'clear')+'-'+timestamp()+'.png');else toast('Gambar belum dapat diekspor.');},'image/png');
+    canvas.toBlob(blob=>{if(blob)downloadBlob(blob,'leinz-'+key+'-'+(state[key].photochromic?'photochromic-uv'+state.uvExposure:t?.code||'clear')+'-'+timestamp()+'.png');else toast('Gambar belum dapat diekspor.');},'image/png');
   }
   function bindEvents(){
+    $('#batch-add').addEventListener('click',()=>{if(batchRows.length<LeinzBlankBatch.MAX_ROWS){batchRows.push({sph:state.sph,cyl:state.cyl,add:state.add});renderBatch();$('#batch-rows tr:last-child input').focus();}});
+    $('#batch-rows').addEventListener('change',event=>{const el=event.target,at=Number(el.dataset.batchRow),field=el.dataset.batchField;if(!Number.isInteger(at)||!batchRows[at]||!['sph','cyl','add'].includes(field))return;batchRows[at][field]=el.value.trim()===''?'':Number(el.value);renderBatch();});
+    $('#batch-export').addEventListener('click',downloadBatch);
     $('#optics-override').addEventListener('change',e=>{state.optics.useOverride=e.target.checked;$('#optics-error').hidden=true;renderAll();});
     $('#apply-optics').addEventListener('click',applyOpticalInputs);
     $('#optics-curve-basis').addEventListener('change',e=>{$('#optics-ref-index').disabled=e.target.value!=='reference-index';});
@@ -463,11 +540,13 @@ function rebuildMasterMaps(){
       if(el.dataset.tab){setTab(el.dataset.tab);return;}
       if(el.dataset.slot){state.active=el.dataset.slot;renderAll();return;}
       if(el.dataset.pickBlank){const eye=el.dataset.eye,row=evaluations[state.active].rows.find(r=>r.blank.id===el.dataset.pickBlank);if(['R','L'].includes(eye)&&row?.['eligible'+eye]){state[state.active]['blankId'+eye]=row.blank.id;renderAll();}return;}
-      if(el.dataset.tint){if(tintMap.get(el.dataset.tint)?.active===false)return;state[state.active].tintCode=el.dataset.tint;renderAll();return;}
+      if(el.dataset.uvPreset!==undefined){setUV(Number(el.dataset.uvPreset));return;}
+      if(el.dataset.tint){if(state[state.active].photochromic)return;if(tintMap.get(el.dataset.tint)?.active===false)return;state[state.active].tintCode=el.dataset.tint;renderAll();return;}
       if(el.dataset.frameStyle&&Object.hasOwn(FRAME_STYLES,el.dataset.frameStyle)){state.frameStyle=el.dataset.frameStyle;renderFrameControls();updatePreview();persist();return;}
       if(el.dataset.shape){setShape(el.dataset.shape);return;}
       if(el.dataset.kind){filterKind=el.dataset.kind;renderCatalog();return;}
       if(el.dataset.group){filterGroup=el.dataset.group;renderCatalog();return;}
+      if(el.dataset.batchRemove!==undefined){const at=Number(el.dataset.batchRemove);if(batchRows.length>1&&Number.isInteger(at)&&at>=0&&at<batchRows.length){batchRows.splice(at,1);renderBatch();}return;}
       if(el.dataset.materialMode){materialMode=el.dataset.materialMode;renderMaterials();return;}
       if(el.dataset.view){setRotation(false);const view=el.dataset.view;for(const key of ['a','b'])view==='reset'?viewers[key].reset():viewers[key].setView(view);$$('[data-view]').forEach(x=>x.classList.toggle('active',x.dataset.view===(view==='reset'?'perspective':view)));currentView=view==='reset'?'perspective':view;cameraStatus(true);return;}
       if(el.dataset.close){$('#'+el.dataset.close).close();return;}
@@ -482,7 +561,9 @@ function rebuildMasterMaps(){
     $('#show-temples').addEventListener('change',e=>{state.showTemples=e.target.checked;renderFrameControls();updatePreview();persist();});
     for(const key of ['a','b'])$('#index-'+key).addEventListener('change',e=>setIndex(key,e.target.value));
     $('#pair-example').addEventListener('click',applyPairExample);
-    $('#match-tints').addEventListener('click',()=>{const from=state.active,to=from==='a'?'b':'a';state[to].tintCode=state[from].tintCode;state[to].customColor=state[from].customColor;renderAll();toast('Warna pilihan '+from.toUpperCase()+' diterapkan juga ke '+to.toUpperCase()+'.');});
+    $('#match-tints').addEventListener('click',()=>{if(state.a.photochromic||state.b.photochromic)return;const from=state.active,to=from==='a'?'b':'a';state[to].tintCode=state[from].tintCode;state[to].customColor=state[from].customColor;renderAll();toast('Warna pilihan '+from.toUpperCase()+' diterapkan juga ke '+to.toUpperCase()+'.');});
+    $('#uv-exposure').addEventListener('input',e=>setUV(e.target.value));
+    for(const key of ['a','b'])$('#photochromic-'+key).addEventListener('change',e=>{state.active=key;state[key].photochromic=e.target.checked;if(e.target.checked)state[key].tintCode=null;renderAll();toast(e.target.checked?'Photochromic '+key.toUpperCase()+' aktif. Atur paparan UV untuk melihat perubahan warna.':'Photochromic '+key.toUpperCase()+' nonaktif. Tint dapat dipilih kembali.');});
     $('#auto-rotate').addEventListener('click',()=>setRotation(!autoRotating));
     for(const key of ['a','b']){
       const canvas=$('#canvas-'+key),activate=()=>{if(state.active!==key){state.active=key;renderAll();}};
@@ -498,8 +579,8 @@ function rebuildMasterMaps(){
     for(const id of ['m-shape','studio-shape'])$('#'+id).addEventListener('change',e=>setShape(e.target.value));
     $('#tint-search').addEventListener('input',e=>{search=e.target.value;renderCatalog();});
     $('#tint-note').addEventListener('input',e=>{state[state.active].note=e.target.value.slice(0,800);persist();});
-    $('#custom-color').addEventListener('input',e=>{state[state.active].customColor=e.target.value;renderControls();updatePreview();persist();});
-    $('#clear-tint').addEventListener('click',()=>{state[state.active].tintCode=null;renderAll();});
+    $('#custom-color').addEventListener('input',e=>{if(state[state.active].photochromic)return;state[state.active].customColor=e.target.value;renderControls();updatePreview();persist();});
+    $('#clear-tint').addEventListener('click',()=>{if(state[state.active].photochromic)return;state[state.active].tintCode=null;renderAll();});
     $('#sync-camera').addEventListener('change',e=>{const running=autoRotating;setRotation(false);state.sync=e.target.checked;if(state.sync){const camera=viewers[state.active].getCamera();for(const key of ['a','b']){viewers[key].setOptions({camera});state[key].camera={...camera};}state.camera={...camera};}if(running)setRotation(true);cameraStatus(true);persist();});
     for(const [id,key]of Object.entries(inputMap)){const el=$('#'+id),commit=()=>{if(el.value.trim()===''||!Number.isFinite(Number(el.value))){el.value=state[key];toast('Isi angka yang valid. Nilai sebelumnya dipertahankan.');return;}const next=Number(el.value);if(next===state[key])return;state[key]=next;state=normalizeState(state);renderAll();};el.addEventListener('change',commit);el.addEventListener('blur',commit);}
     $('#show-candidates').addEventListener('click',()=>{materialMode='candidates';setTab('materials');});

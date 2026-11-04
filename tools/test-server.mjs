@@ -9,9 +9,16 @@ import { randomBytes } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { createRequire } from 'node:module';
 import { loadConfig, PROJECT_ROOT } from '../server/config.mjs';
 import { createPool, migrate, seed, MysqlStore, TABLES, decodeJson, catalogDigest } from '../server/db.mjs';
 import { createApp } from '../server/app.mjs';
+
+const require = createRequire(import.meta.url);
+const { getAppearance } = require('../dist/photochromic.js');
+const { HEADERS, parseCSV, rowsFor, buildMasterImport } = require('../dist/tabular-import.js');
+const { MasterUiModel } = require('../dist/master-manager.js');
+const BlankEngine = require('../dist/blank-engine.js');
 
 if (process.env.LEINZ_ALLOW_TEST_DB !== '1' || !/^leinz_test_[A-Za-z0-9_]+$/.test(process.env.MYSQL_DATABASE || '')) {
   console.error('Refusing integration tests: set LEINZ_ALLOW_TEST_DB=1 and MYSQL_DATABASE=leinz_test_<disposable_name>. This test resets the Leinz tables in that database.');
@@ -61,9 +68,9 @@ async function request(path, { method = 'GET', body, rawBody, cookie, csrf, head
   return new Promise((resolve, reject) => {
     const req = httpRequest(origin, { method, path, headers: merged }, res => {
       const chunks = []; res.on('data', chunk => chunks.push(chunk));
-      res.on('end', () => { const text = Buffer.concat(chunks).toString('utf8'); let json;
+      res.on('end', () => { const bytes = Buffer.concat(chunks), text = bytes.toString('utf8'); let json;
         try { json = JSON.parse(text); } catch { /* static files are not JSON */ }
-        resolve({ status: res.statusCode, headers: res.headers, text, json });
+        resolve({ status: res.statusCode, headers: res.headers, bytes, text, json });
       });
     });
     req.setTimeout(10000, () => req.destroy(Error('HTTP test timed out')));
@@ -181,6 +188,30 @@ try {
       const races = await Promise.all([putDoc('state', { ...state, width: 54 }, 1, admin), putDoc('state', { ...state, width: 55 }, 1, admin)]);
       assert.deepEqual(races.map(r => r.status).sort(), [200, 409]); assert.equal((await getDoc('state', admin)).revision, 2);
     });
+    await test('Photochromic state and UV round-trip; simultaneous tint is rejected without database mutation', async () => {
+      const previous = await getDoc('state', admin), next = clone(previous.value);
+      next.uvExposure = 65; next.a.photochromic = true; next.a.tintCode = null; next.b.photochromic = false;
+      try {
+        const write = await putDoc('state', next, previous.revision, admin);
+        assert.equal(write.status, 200, write.text);
+        assert.deepEqual((await getDoc('state', admin)).value, next);
+        const [[row]] = await pool.execute('SELECT document_json, revision FROM leinz_user_documents WHERE user_id = ? AND document_key = ?', [admin.user.id, 'state']);
+        assert.deepEqual(decodeJson(row.document_json), next);
+        assert.equal(Number(row.revision), write.json.revision);
+        const conflicting = clone(next); conflicting.a.tintCode = '09S';
+        const rejected = await putDoc('state', conflicting, write.json.revision, admin);
+        assert.equal(rejected.status, 422, rejected.text);
+        assert.match(rejected.json.error.message, /photochromic.*tinting/i);
+        assert.deepEqual(await getDoc('state', admin), write.json, 'A rejected tint must not advance the state revision or change its value.');
+      } finally {
+        const current = await getDoc('state', admin);
+        if (current.revision !== previous.revision) {
+          const restored = await putDoc('state', previous.value, current.revision, admin);
+          assert.equal(restored.status, 200, restored.text);
+          assert.deepEqual(restored.json.value, previous.value);
+        }
+      }
+    });
     await test('SKU master supports all allowed indices, quoted/Unicode codes and shared access', async () => {
       const materials = bootstrap.catalogs.materials;
       const variants = ['1.50', '1.56', '1.57', '1.60', '1.67', '1.74'].map((index, i) => {
@@ -208,6 +239,107 @@ try {
       assert.deepEqual((await getDoc('saved', admin)).value, [entry]); assert.deepEqual((await getDoc('saved', other)).value, []);
       for (const value of [[{ ...entry, data: { choices: 'wrong' } }], [entry, entry], Array.from({ length: 31 }, (_, i) => ({ ...entry, id: `qa-${i}` }))]) assert.equal((await putDoc('saved', value, 1, admin)).status, 422);
       assert.equal((await getDoc('saved', admin)).revision, 1);
+    });
+    await test('Schema 1.4 photochromic history persists UV and rejects conflicting snapshot tint', async () => {
+      const previous = await getDoc('saved', admin), photoState = clone(state);
+      photoState.uvExposure = 65; photoState.a.photochromic = true; photoState.a.tintCode = null; photoState.b.photochromic = false;
+      const entry = { id: 'qa-photochromic-14', title: 'Photochromic A / tint B · UV 65%', createdAt: new Date().toISOString(), state: photoState,
+        data: { schema: 'trl-lens-consultation/1.4', preview: { uvExposure: 65 },
+          choices: ['a','b'].map(key=>({ choice: key.toUpperCase(), index: photoState[key].index,
+            tint: photoState[key].tintCode ? { code: photoState[key].tintCode } : null,
+            photochromic: getAppearance(photoState[key].photochromic, 65) })) } };
+      try {
+        const write = await putDoc('saved', [entry, ...previous.value], previous.revision, admin);
+        assert.equal(write.status, 200, write.text);
+        assert.deepEqual((await getDoc('saved', admin)).value, [entry, ...previous.value]);
+        const [[row]] = await pool.execute('SELECT document_json FROM leinz_user_documents WHERE user_id = ? AND document_key = ?', [admin.user.id, 'saved']);
+        assert.deepEqual(decodeJson(row.document_json)[0], entry);
+        for (const mutate of [
+          value => { value.data.choices[0].tint = { code: '09S' }; },
+          value => { value.data.choices[0].photochromic.uvExposure = 60; },
+          value => { value.data.choices[0].photochromic = getAppearance(false, 65); }
+        ]) {
+          const conflicting = clone(entry); mutate(conflicting);
+          const rejected = await putDoc('saved', [conflicting, ...previous.value], write.json.revision, admin);
+          assert.equal(rejected.status, 422, rejected.text);
+          assert.deepEqual(await getDoc('saved', admin), write.json, 'A rejected snapshot must preserve both history and revision.');
+        }
+        assert.deepEqual((await getDoc('saved', other)).value, [], 'Photochromic history must remain scoped to its account.');
+      } finally {
+        const current = await getDoc('saved', admin);
+        if (current.revision !== previous.revision) {
+          const restored = await putDoc('saved', previous.value, current.revision, admin);
+          assert.equal(restored.status, 200, restored.text);
+          assert.deepEqual(restored.json.value, previous.value);
+        }
+      }
+    });
+    await test('Legacy schema 1.3 history remains valid with explicit photochromic off and zero UV defaults', async () => {
+      const previous = await getDoc('saved', admin), entry = clone(previous.value[0]);
+      entry.id = 'qa-legacy-13-import'; entry.data.schema = 'trl-lens-consultation/1.3';
+      entry.state.uvExposure = 0; entry.state.a.photochromic = false; entry.state.b.photochromic = false;
+      try {
+        const write = await putDoc('saved', [entry, ...previous.value], previous.revision, admin);
+        assert.equal(write.status, 200, write.text);
+        assert.deepEqual((await getDoc('saved', admin)).value[0], entry);
+        assert.equal(write.json.value[0].state.a.tintCode, entry.state.a.tintCode);
+        assert.equal(write.json.value[0].data.choices[0].photochromic, undefined, 'An original 1.3 snapshot need not invent 1.4 metadata.');
+      } finally {
+        const current = await getDoc('saved', admin);
+        if (current.revision !== previous.revision) {
+          const restored = await putDoc('saved', previous.value, current.revision, admin);
+          assert.equal(restored.status, 200, restored.text);
+          assert.deepEqual(restored.json.value, previous.value);
+        }
+      }
+    });
+    await test('CSV import replaces only the touched blank coverage and preserves joint power rules in MySQL', async () => {
+      const previous = (await request('/api/catalogs', admin)).json, skus = (await getDoc('skus', admin)).value;
+      const material = previous.value.materials.products.find(value=>value.id==='DMO:SPHG60');
+      const blank = previous.value.materials.blanks.find(value=>value.productId===material.id&&value.baseCurve===1&&value.diameter===75);
+      assert.ok(material && blank, 'The audited DMO/SPHG60 BC1 Ø75 fixture must exist.');
+      const base = [material.supplier, material.code, material.name, blank.baseCurve, blank.diameter, blank.ct, blank.et];
+      const first = [...base, -9, -8, -3, 0, 0, 0], second = [...base, -9, -8, 0, 0, 1, 2];
+      const cell = value => '"' + String(value).replace(/"/g, '""') + '"';
+      const csv = [HEADERS.materials, first, second, first].map(row=>row.map(cell).join(',')).join('\r\n') + '\r\n';
+      const parsed = parseCSV(csv, { filename: 'qa-touched-blank.csv' });
+      const imported = buildMasterImport(previous.value, parsed, { kind: 'materials', skuCatalog: skus, now: '2026-11-04T00:00:00.000Z' });
+      const plan = MasterUiModel.importPlan(previous.value, imported.payload, { skuCatalog: skus });
+      assert.equal(imported.info.touchedBlanks, 1); assert.equal(imported.info.duplicateRows, 1); assert.equal(imported.info.uniqueRecords, 2);
+      assert.equal(plan.changed, true);
+      assert.deepEqual(plan.value.materials.products, previous.value.materials.products);
+      assert.deepEqual(plan.value.materials.blanks, previous.value.materials.blanks);
+      assert.deepEqual(plan.value.materials.rules.filter(rule=>rule.blankId!==blank.id), previous.value.materials.rules.filter(rule=>rule.blankId!==blank.id));
+      assert.deepEqual(plan.value.shapes, previous.value.shapes); assert.deepEqual(plan.value.tints, previous.value.tints);
+      const frame = BlankEngine.estimateFrame({ ...state, points: previous.value.shapes.items.find(shape=>shape.code===state.shape).points });
+      assert.equal(frame.valid, true);
+      try {
+        const write = await request('/api/catalogs', { method: 'PUT', body: { value: plan.value, revision: previous.revision }, ...admin });
+        assert.equal(write.status, 200, write.text);
+        const saved = (await request('/api/catalogs', other)).json;
+        assert.deepEqual(saved, write.json);
+        assert.equal(saved.value.materials.rules.filter(rule=>rule.blankId===blank.id).length, 2);
+        for (const [rx, expected] of [[{sph:-8.5,cyl:-2,add:0},true], [{sph:-8.5,cyl:0,add:1.5},true], [{sph:-8.5,cyl:-2,add:1.5},false], [{sph:-9,cyl:-4,add:0},false]]) {
+          const result = BlankEngine.evaluate({ materials: saved.value.materials, index: material.index, productId: material.id, rx, frame });
+          const candidate = result.rows.find(row=>row.blank.id===blank.id);
+          assert.equal(candidate.rawPowerMatches, expected, 'Stored range rows must remain AND within a row / OR across rows.');
+          assert.equal(candidate.eligibleBoth, expected);
+        }
+        const repeat = buildMasterImport(saved.value, parsed, { kind: 'materials', skuCatalog: skus });
+        assert.equal(MasterUiModel.importPlan(saved.value, repeat.payload, { skuCatalog: skus }).changed, false, 'Reimporting identical coverage must be idempotent.');
+        assert.deepEqual((await getDoc('skus', admin)).value, skus, 'Importing coverage must preserve SKU and blank assignment identities.');
+        const invalid = clone(saved.value); invalid.materials.rules.find(rule=>rule.blankId===blank.id).cylFrom = 1;
+        const rejected = await request('/api/catalogs', { method: 'PUT', body: { value: invalid, revision: saved.revision }, ...admin });
+        assert.equal(rejected.status, 422, rejected.text);
+        assert.deepEqual((await request('/api/catalogs', admin)).json, saved);
+      } finally {
+        const current = (await request('/api/catalogs', admin)).json;
+        if (current.revision !== previous.revision) {
+          const restored = await request('/api/catalogs', { method: 'PUT', body: { value: previous.value, revision: current.revision }, ...admin });
+          assert.equal(restored.status, 200, restored.text);
+          assert.deepEqual(restored.json.value, previous.value);
+        }
+      }
     });
     await test('Migration from the six-table 2.0 schema preserves existing catalogs, accounts, SKU and consultations', async () => {
       const catalogs=(await request('/api/catalogs',admin)).json.value;
@@ -300,6 +432,30 @@ try {
       assert.equal((await request('/api/documents/unknown', admin)).status, 404);
       assert.equal((await request('/api/documents/state', { method: 'POST', body: {}, ...admin })).status, 405);
       const head = await request('/index.html', { method: 'HEAD' }); assert.equal(head.status, 200); assert.equal(head.text, '');
+    });
+    await test('All eight CSV and Excel templates support exact-byte GET and empty-body HEAD with correct MIME types', async () => {
+      for (const [kind, name] of [['materials','blank'], ['shapes','frame-shape'], ['tints','tinting'], ['skus','sku']]) {
+        for (const extension of ['csv','xlsx']) {
+          const path = `/templates/${name}-template.${extension}`;
+          const expected = readFileSync(resolve(PROJECT_ROOT, 'dist', path.slice(1)));
+          const type = extension === 'csv' ? 'text/csv; charset=utf-8' : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+          const get = await request(path);
+          assert.equal(get.status, 200, path);
+          assert.equal(get.headers['content-type'], type, path);
+          assert.equal(Number(get.headers['content-length']), expected.length, path);
+          assert.equal(get.headers['x-content-type-options'], 'nosniff', path);
+          assert.deepEqual(get.bytes, expected, `${path}: download bytes must equal the validated template.`);
+          if (extension === 'csv') assert.ok(rowsFor(parseCSV(get.text, { filename: `${name}-template.csv` }), kind).length > 0, path);
+          else assert.deepEqual([...get.bytes.subarray(0,4)], [0x50,0x4B,0x03,0x04], `${path}: XLSX must remain a binary ZIP container.`);
+          const head = await request(path, { method: 'HEAD' });
+          assert.equal(head.status, 200, path); assert.equal(head.bytes.length, 0, path);
+          assert.equal(head.headers['content-type'], type, path);
+          assert.equal(Number(head.headers['content-length']), expected.length, path);
+        }
+      }
+      const readme = await request('/templates/README-import-templates.txt');
+      assert.equal(readme.status, 200); assert.equal(readme.headers['content-type'], 'text/plain; charset=utf-8');
+      assert.deepEqual(readme.bytes, readFileSync(resolve(PROJECT_ROOT, 'dist/templates/README-import-templates.txt')));
     });
     await test('Migration/seed reruns preserve user documents and SKU revisions', async () => {
       const before = { state: await getDoc('state', admin), saved: await getDoc('saved', admin), skus: await getDoc('skus', admin) }, catalogs=(await request('/api/catalogs',admin)).json;

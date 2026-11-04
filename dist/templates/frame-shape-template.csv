@@ -1,0 +1,3 @@
+﻿code,name,active,width_mm,height_mm,contour,points_json
+round,Rounded / Bulat,TRUE,50,44.6,keep,
+rectangle,Rectangle,TRUE,54,39.7,keep,

@@ -1,6 +1,0 @@
-npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
-
-> leinz-lens-studio@2.1.1 admin:create
-> node server/cli.mjs admin-create
-
-Akun qa_release_admin berhasil dibuat. Password tidak ditampilkan.

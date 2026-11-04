@@ -5,6 +5,7 @@
  * eyeLayout: 'wearer' reflects only the paired display: L on the left, R on the right.
  * Canonical per-eye geometry and optical-center inputs are preserved.
  * Camera angles are in radians. PDF colors are displayed RGB, never VLT measurements.
+ * photochromicStrength: optional visual blend 0–1; null preserves ordinary tint.
  */
 (function (global) {
   'use strict';
@@ -211,7 +212,7 @@
         widthMm: 52, heightMm: 38, sph: -4, cyl: -1, axis: 180, index: 1.60,
         centerThickness: 1.5, opticalProfile: null, opticalProfiles: null,
         colorHex: null, midColorHex: null, bottomColorHex: null,
-        kind: 'Solid', visualStrength: 1, showFrame: false, frameStyle: 'full-rim', showTemples: true, background: '#f4f5f2',
+        kind: 'Solid', visualStrength: 1, photochromicStrength: null, showFrame: false, frameStyle: 'full-rim', showTemples: true, background: '#f4f5f2',
         pairMode: false, eyeLayout: 'observer', bridgeMm: 18, opticalCenters: null, autoRotateSpeed: 0.36,
         showMeasurements: false, measurementsValid: true, contourMode: 'raster',
         ...options
@@ -740,7 +741,10 @@
       ctx.fillStyle = wash;
       ctx.fillRect(0, 0, this.width, this.height);
 
-      const tinted = /^#?[0-9a-f]{3}([0-9a-f]{3})?$/i.test(this.options.colorHex || '');
+      const photochromicStrength = typeof this.options.photochromicStrength === 'number' && Number.isFinite(this.options.photochromicStrength)
+        ? clamp(this.options.photochromicStrength, 0, 1) : null;
+      const tintAmount = /^#?[0-9a-f]{3}([0-9a-f]{3})?$/i.test(this.options.colorHex || '') ? (photochromicStrength ?? 1) : 0;
+      const tinted = tintAmount > 0;
       const strength = clamp(number(this.options.visualStrength, 1), 0, 1.5);
       const neutral = [224, 234, 236];
       let top = rgb(this.options.colorHex, neutral);
@@ -753,6 +757,13 @@
         top = mix(top, [0, 0, 0], (strength - 1) * 0.3);
         bottom = mix(bottom, [0, 0, 0], (strength - 1) * 0.3);
         if (middle) middle = mix(middle, [0, 0, 0], (strength - 1) * 0.3);
+      }
+      if (photochromicStrength !== null) {
+        // Blend from the same clear material used at zero UV; no abrupt change
+        // to solid-tint opacity or colour when the first UV step is applied.
+        top = mix(neutral, top, photochromicStrength);
+        bottom = mix([246, 248, 248], bottom, photochromicStrength);
+        if (middle) middle = mix(neutral, middle, photochromicStrength);
       }
       const gradient = String(this.options.kind).toLowerCase() === 'gradient' && tinted;
       const bridge = clamp(number(this.options.bridgeMm, 18), 0, 40);
@@ -773,7 +784,7 @@
         this._paintFramePass('far');
       }
       this._renderedEyes = [];
-      eyes.forEach(eye => this._renderLens(eye, { top, middle, bottom, tinted, gradient }));
+      eyes.forEach(eye => this._renderLens(eye, { top, middle, bottom, tinted, gradient, tintAmount }));
       if (this.options.showFrame) {
         this._paintFramePass('near');
         this._paintFrameEyeLabels();
@@ -785,8 +796,8 @@
     _renderLens(eye, material) {
       const ctx = this.ctx;
       const { mesh, offsetX } = eye;
-      const { top, middle, bottom, tinted, gradient } = mesh.opticalModel.valid ? material :
-        { top: [228, 233, 234], middle: null, bottom: [245, 247, 247], tinted: false, gradient: false };
+      const { top, middle, bottom, tinted, gradient, tintAmount } = mesh.opticalModel.valid ? material :
+        { top: [228, 233, 234], middle: null, bottom: [245, 247, 247], tinted: false, gradient: false, tintAmount: 0 };
       const { rotate, project, scale, originX } = this._transformation(mesh, offsetX);
       const facing = Math.abs(rotate(0, 0, 1).z);
       const index = clamp(number(this.options.index, 1.6), 1.3, 2);
@@ -825,9 +836,10 @@
         // reflection. Its opaque composited paint prevents translucent seams
         // where neighbouring antialiased edge strips meet.
         const edgeBase = [193, 210, 212];
-        const edgeTop = mix(edgeBase, top, tinted ? .56 : .14);
-        const edgeMid = middle ? mix(edgeBase, middle, .56) : null;
-        const edgeBottom = mix(edgeBase, bottom, tinted ? .56 : .14);
+        const edgeMix = .14 + .42 * tintAmount;
+        const edgeTop = mix(edgeBase, top, edgeMix);
+        const edgeMid = middle ? mix(edgeBase, middle, tinted ? edgeMix : .56) : null;
+        const edgeBottom = mix(edgeBase, bottom, edgeMix);
         this._path(panel.ids, projected);
         ctx.fillStyle = this._facePaint(points, edgeTop, edgeMid, edgeBottom, .71 + light * .27, 1, gradient);
         ctx.fill();
@@ -849,16 +861,19 @@
       // Draw the far outline before the near face, which correctly hides occluded
       // rear-edge sections instead of creating a second ragged line on the face.
       this._path(rearRim, projected);
-      ctx.strokeStyle = tinted ? 'rgba(75,94,99,0.21)' : 'rgba(105,137,143,0.23)';
+      ctx.strokeStyle = tintAmount === 1 ? 'rgba(75,94,99,0.21)' : tintAmount === 0 ? 'rgba(105,137,143,0.23)' :
+        color(mix([105,137,143], [75,94,99], tintAmount), 1, .23 - .02 * tintAmount);
       ctx.lineWidth = 0.6; ctx.stroke();
       // One continuous surface fill avoids seams between rasterized mesh triangles.
       // Its outline and light reflections still use the curved 3D surface geometry.
       this._path(rim, projected);
-      const faceAlpha = tinted ? .86 : .16 + Math.min(.19, reflectance * .28);
+      const clearAlpha = .16 + Math.min(.19, reflectance * .28);
+      const faceAlpha = tintAmount === 1 ? .86 : clearAlpha + (.86 - clearAlpha) * tintAmount;
       ctx.fillStyle = this._facePaint(references, top, middle, bottom, 1, faceAlpha, gradient);
       ctx.fill();
       this._path(rim, projected);
-      ctx.strokeStyle = tinted ? 'rgba(54,79,85,0.32)' : 'rgba(92,126,132,0.40)';
+      ctx.strokeStyle = tintAmount === 1 ? 'rgba(54,79,85,0.32)' : tintAmount === 0 ? 'rgba(92,126,132,0.40)' :
+        color(mix([92,126,132], [54,79,85], tintAmount), 1, .40 - .08 * tintAmount);
       ctx.lineJoin = 'round';
       ctx.lineWidth = .85; ctx.stroke();
 
@@ -876,7 +891,7 @@
       }
       ctx.strokeStyle = 'rgba(255,255,255,.69)'; ctx.lineWidth = .55; ctx.lineCap = 'round'; ctx.stroke();
 
-      if (facing > .08) this._reflection(mesh, projected, rim, project, frontFacing, scale, reflectance, tinted);
+      if (facing > .08) this._reflection(mesh, projected, rim, project, frontFacing, scale, reflectance, tintAmount);
       if (!this.options.showFrame && eye.label && bounds.maxX >= 0 && bounds.minX <= this.width) {
         ctx.save();
         ctx.font = '600 11px Arial, sans-serif';
@@ -1095,7 +1110,7 @@
       ctx.restore();
     }
 
-    _reflection(mesh, projected, rim, project, frontFacing, scale, reflectance = .05, tinted = false) {
+    _reflection(mesh, projected, rim, project, frontFacing, scale, reflectance = .05, tintAmount = 0) {
       const ctx = this.ctx;
       ctx.save();
       this._path(rim, projected); ctx.clip();
@@ -1106,7 +1121,7 @@
       // Soft studio-light reflections follow the curved physical surface. Their
       // intensity uses the refractive-index Fresnel trend; no AR coating or
       // measured transmission is implied by this illustrative lighting.
-      const sheen = Math.min(.28, .065 + reflectance * .24 + (tinted ? .025 : 0));
+      const sheen = Math.min(.28, .065 + reflectance * .24 + .025 * tintAmount);
       const strip = (topEdge, bottomEdge, alpha) => {
         ctx.beginPath();
         for (let i = 0; i <= 40; i++) {

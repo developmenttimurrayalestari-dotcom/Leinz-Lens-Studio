@@ -1,0 +1,3 @@
+﻿supplier,LensCode,Descr,base_curve,diameter,center_thickness,edge_thickness,sph_from,sph_to,cyl_from,cyl_to,add_from,add_to
+DMO,SPHG60,Spherical 1.6 UV420  Grey Spin,1,75,7.5,15,-10,-8,0,0,0.25,4
+DMO,SPHG60,Spherical 1.6 UV420  Grey Spin,1,75,7.5,15,-9.25,-7.75,-6,0,0,0

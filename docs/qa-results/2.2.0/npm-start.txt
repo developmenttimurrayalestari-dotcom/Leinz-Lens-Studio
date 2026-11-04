@@ -1,0 +1,12 @@
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> leinz-lens-studio@2.2.0 start
+> node server/start.mjs
+
+Leinz Lens Studio siap pada http://127.0.0.1:[PORT_QA] (listener 127.0.0.1:[PORT_QA]).
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> leinz-lens-studio@2.2.0 start
+> node server/start.mjs
+
+Leinz Lens Studio siap pada http://127.0.0.1:[PORT_QA] (listener 127.0.0.1:[PORT_QA]).

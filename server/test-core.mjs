@@ -7,6 +7,10 @@ import { loadConfig, PROJECT_ROOT } from './config.mjs';
 import { checkMysqlVersion } from './db.mjs';
 import { hashPassword, verifyPassword, username, validatePassword, readSessionToken, newToken, tokenHash, equalSecret, sessionCookie, LoginLimiter } from './auth.mjs';
 import { validateDocument, validateRevision, checkJson } from './validation.mjs';
+import { createRequire } from 'node:module';
+
+const require = createRequire(import.meta.url);
+const { getAppearance } = require('../dist/photochromic.js');
 
 const catalogs = Object.fromEntries(await Promise.all(['tints', 'materials', 'shapes'].map(async key => [key, JSON.parse(await readFile(resolve(PROJECT_ROOT, `dist/assets/${key}.json`), 'utf8'))])));
 const env = { MYSQL_DATABASE: 'leinz_test', MYSQL_USER: 'test_user', MYSQL_PASSWORD: 'example-only-unit-test', APP_URL: 'http://localhost:3000' };
@@ -94,4 +98,84 @@ test('JSON prototype keys, infinite numbers and invalid revisions are rejected',
   assert.throws(() => checkJson({ value: Infinity }), /terbatas/);
   for (const value of [-1, .1, '1', null, 4294967295]) assert.throws(() => validateRevision(value));
   assert.equal(validateRevision(0), 0); assert.equal(validateRevision(200), 200);
+});
+
+function photochromicState(uvExposure = 70) {
+  const value = state(); value.uvExposure = uvExposure;
+  value.a.photochromic = true; value.a.tintCode = null;
+  value.b.photochromic = false; value.b.tintCode = '09S';
+  return value;
+}
+
+function photochromicSaved() {
+  const value = photochromicState();
+  return { id: 'photo-one', title: 'Photochromic UV', createdAt: '2026-11-04T00:00:00.000Z', state: value,
+    data: { schema: 'trl-lens-consultation/1.4', preview: { uvExposure: value.uvExposure },
+      choices: ['a','b'].map(key=>({ choice: key.toUpperCase(), index: value[key].index,
+        tint: value[key].tintCode ? {code:value[key].tintCode} : null,
+        photochromic: getAppearance(value[key].photochromic, value.uvExposure) })) } };
+}
+
+test('state validation preserves per-pair photochromic and UV, with old states still accepted unchanged', () => {
+  const value = photochromicState(), before = structuredClone(value);
+  const result = validateDocument('state', value, catalogs);
+  assert.deepEqual(result, value);
+  assert.deepEqual(value, before);
+  result.uvExposure = 1;
+  assert.equal(value.uvExposure, 70);
+  assert.deepEqual(validateDocument('state', state(), catalogs), state());
+  assert.equal(validateDocument('state', photochromicState(0), catalogs).a.photochromic, true);
+});
+
+test('server state validation rejects tint on an enabled photochromic pair and malformed exposure or mode', () => {
+  for (const mutate of [
+    item => { item.a.tintCode = '09S'; },
+    item => { item.b.photochromic = true; },
+    item => { item.a.photochromic = 'true'; },
+    item => { item.b.photochromic = 0; },
+    item => { item.uvExposure = -1; },
+    item => { item.uvExposure = 100.1; },
+    item => { item.uvExposure = '70'; },
+    item => { item.uvExposure = null; },
+    item => { item.uvExposure = NaN; },
+    item => { delete item.uvExposure; }
+  ]) {
+    const value = photochromicState(); mutate(value);
+    assert.throws(() => validateDocument('state', value, catalogs));
+  }
+});
+
+test('saved photochromic consultations retain one consistent UV snapshot and independent A/B appearance modes', () => {
+  const value = photochromicSaved(), before = structuredClone(value);
+  const result = validateDocument('saved', [value], catalogs);
+  assert.deepEqual(result, [value]);
+  assert.deepEqual(value, before);
+  assert.equal(result[0].data.choices[0].photochromic.enabled, true);
+  assert.equal(result[0].data.choices[1].tint.code, '09S');
+});
+
+test('saved consultation snapshots cannot bypass photochromic exclusivity or contradict the stored modes and exposure', () => {
+  for (const mutate of [
+    item => { item.data.choices[0].tint = { code: '09S' }; },
+    item => { item.data.choices[0].photochromic = getAppearance(false, 70); },
+    item => { item.data.choices[1].photochromic = getAppearance(true, 70); item.data.choices[1].tint = null; },
+    item => { item.data.preview.uvExposure = 50; },
+    item => { item.data.preview.uvExposure = '70'; },
+    item => { item.data.choices[0].photochromic.uvExposure = 30; },
+    item => { item.data.choices[0].photochromic.simulationOnly = false; },
+    item => { item.data.choices[1].choice = 'A'; },
+    item => { delete item.data.choices[1].photochromic; },
+    item => { delete item.data.preview; },
+    item => { item.data = { choices: [{ index: '1.74', tint: null }, { index: '1.50', tint: { code: '09S' } }] }; }
+  ]) {
+    const value = photochromicSaved(); mutate(value);
+    assert.throws(() => validateDocument('saved', [value], catalogs));
+  }
+});
+
+test('imported schema 1.3 history remains valid after UI adds explicit off/zero defaults to its state', () => {
+  const value = state(); value.uvExposure = 0; value.a.photochromic = false; value.b.photochromic = false;
+  const item = { id: 'legacy-import-one', title: 'Impor konsultasi lama', createdAt: '2026-11-04T00:00:00.000Z', state: value,
+    data: { schema: 'trl-lens-consultation/1.3', choices: [{ index: '1.74', tint: { code: '09S' } }, { index: '1.50', tint: null }] } };
+  assert.deepEqual(validateDocument('saved', [item], catalogs), [item]);
 });

@@ -1,5 +1,0 @@
-npm ci
-Node.js v24.22.1 / npm 11.9.0
-Installed 12 packages from package-lock.json in a clean release directory.
-Exit code: 0
-Environment warning: npm http-proxy config, not shipped in package.

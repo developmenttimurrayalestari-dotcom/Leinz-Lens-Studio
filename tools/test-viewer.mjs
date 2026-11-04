@@ -878,6 +878,72 @@ for (const shape of shapes) {
 }
 mounted.destroy();
 
+// UV is an appearance control. Exercise real face/edge paint calls, including
+// the formerly abrupt UV0→UV1 transition, while retaining both optical meshes.
+{
+  const photoSandbox = { module: { exports: {} } };
+  vm.runInNewContext(fs.readFileSync(new URL('../dist/photochromic.js', import.meta.url), 'utf8'), photoSandbox);
+  const { getAppearance } = photoSandbox.module.exports;
+  const viewer = new LensViewer(canvas(), { pairMode: true, eyeLayout: 'wearer',
+    sph: -5.5, cyl: -1.25, axis: 35, index: 1.74, showMeasurements: true,
+    opticalCenters: { R: { x: 3.5, y: 2 }, L: { x: -5, y: 1 } } });
+  const before = opticalSnapshot(viewer), originalPaint = viewer._facePaint;
+  let paints = [];
+  viewer._facePaint = function(points, top, middle, bottom, tone, alpha, gradient) {
+    assert.ok(Number.isFinite(alpha) && alpha >= 0 && alpha <= 1, 'Photochromic paint opacity must remain finite and bounded.');
+    for (const channel of [...top, ...(middle || []), ...bottom]) assert.ok(Number.isFinite(channel) && channel >= 0 && channel <= 255);
+    paints.push({ top: [...top], bottom: [...bottom], tone, alpha });
+    return originalPaint.call(this, points, top, middle, bottom, tone, alpha, gradient);
+  };
+  let previousAlpha = 0, previousLuminance = 255, zeroFace, zeroEdge;
+  const luminance = face => face.top.reduce((sum, channel) => sum + channel, 0) / 3 * face.alpha + 255 * (1 - face.alpha);
+  for (const uv of [0, .01, 1, 25, 50, 75, 100]) {
+    const appearance = getAppearance(true, uv); paints = [];
+    viewer.setOptions({ colorHex: appearance.colorHex, bottomColorHex: appearance.colorHex,
+      midColorHex: null, kind: 'Solid', photochromicStrength: uv / 100 });
+    const faces = paints.filter(paint => paint.alpha < 1), edges = paints.filter(paint => paint.alpha === 1);
+    assert.equal(faces.length, 2, 'Both R and L must receive one continuous front surface.');
+    assert.ok(edges.length > 0, 'A perspective preview must retain its polished edge faces.');
+    assert.ok(faces[0].alpha >= previousAlpha, 'Increasing UV cannot reduce the face opacity.');
+    const brightness = luminance(faces[0]);
+    assert.ok(brightness <= previousLuminance + 1e-8, 'Increasing UV cannot lighten the composited face.');
+    previousAlpha = faces[0].alpha; previousLuminance = brightness;
+    if (uv === 0) { zeroFace = faces[0]; zeroEdge = edges[0]; }
+    if (uv <= 1) {
+      assert.ok(faces[0].alpha - zeroFace.alpha < .01, 'UV0→UV1 must not jump to ordinary tint opacity.');
+      assert.ok(Math.abs(brightness - luminance(zeroFace)) < 1, 'The first UV step should stay visually close to clear.');
+      assert.ok(edges[0].top.every((channel, i) => Math.abs(channel - zeroEdge.top[i]) < 1), 'Edge colour must also blend smoothly at low UV.');
+    }
+    assertFrameOnly(viewer, before, `Photochromic UV ${uv}`);
+  }
+  assert.equal(previousAlpha, .86, 'Full UV should retain the established translucent dark-lens rendering.');
+  assert.ok(previousLuminance < 100, 'Full UV must visibly darken the lens while preserving its highlights.');
+  for (const uv of [50, 0]) {
+    const appearance = getAppearance(true, uv); paints = [];
+    viewer.setOptions({ colorHex: appearance.colorHex, bottomColorHex: appearance.colorHex, photochromicStrength: uv / 100 });
+    const face = paints.find(paint => paint.alpha < 1);
+    assert.ok(luminance(face) >= previousLuminance, 'Reducing UV must lighten the lens again.');
+    previousLuminance = luminance(face);
+    assertFrameOnly(viewer, before, `Photochromic UV falling to ${uv}`);
+  }
+  paints = [];
+  viewer.setOptions({ colorHex: '#445566', bottomColorHex: '#445566', photochromicStrength: null });
+  assert.ok(paints.filter(paint => paint.alpha < 1).every(paint => paint.alpha === .86), 'Disabling photochromic must restore the unchanged ordinary tint renderer.');
+  for (const invalid of [NaN, Infinity, -1, 2, '0.5', undefined, null]) {
+    paints = [];
+    viewer.setOptions({ photochromicStrength: invalid });
+    assert.ok(paints.length);
+    assertFrameOnly(viewer, before, 'Invalid or out-of-range visual strength');
+  }
+  for (const uv of [0, 50, 100]) for (const view of ['front','side','back']) {
+    const appearance = getAppearance(true, uv);
+    viewer.setOptions({ colorHex: appearance.colorHex, bottomColorHex: appearance.colorHex, photochromicStrength: uv / 100 });
+    viewer.setView(view);
+    assertFrameOnly(viewer, before, `Photochromic ${uv} ${view}`);
+  }
+  viewer.destroy();
+}
+
 // Regression: an opaque B-dimension label once hid a temple segment, leaving
 // its ear tip apparently detached. Check actual segment/rectangle intersections
 // (including stroke width), not just bounding boxes of diagonal segments.
@@ -1012,4 +1078,4 @@ assert.equal(mediaListeners.size, 0);
 assert.equal(animatedCanvas.listeners.size, 0);
 assert.deepEqual(rotationEvents, [true, false, true]);
 
-console.log('Viewer checks passed: full/half/rimless frame hardware and temple visibility, camera fitting and optical invariance, canvas measurement annotation bounds/true maximum anchors, numeric CT/ET and whole-lens extrema, shared smooth screening/render contours, wearer-side eye ordering with preserved eye data, mirrored eye pair, independent optical-center decentration, frame-anchored tint, full yaw/pitch turns, index ordering, PDF gradients, synchronization, visibility/reduced-motion playback, and cleanup.');
+console.log('Viewer checks passed: smooth reversible UV/photochromic face and polished-edge appearance without geometry changes, full/half/rimless frame hardware and temple visibility, camera fitting and optical invariance, canvas measurement annotation bounds/true maximum anchors, numeric CT/ET and whole-lens extrema, shared smooth screening/render contours, wearer-side eye ordering with preserved eye data, mirrored eye pair, independent optical-center decentration, frame-anchored tint, full yaw/pitch turns, index ordering, PDF gradients, synchronization, visibility/reduced-motion playback, and cleanup.');

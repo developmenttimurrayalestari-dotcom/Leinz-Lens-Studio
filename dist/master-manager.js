@@ -21,6 +21,7 @@
   const text = value => typeof value === 'string' ? value.trim() : '';
   const hex = value => /^#[0-9a-f]{6}$/i.test(String(value || '')) ? String(value).toUpperCase() : null;
   const model = () => global.LeinzCatalogModel || (typeof require === 'function' ? require('./catalog-model.js') : null);
+  const tabular = () => global.LeinzTabularImport || (typeof require === 'function' ? require('./tabular-import.js') : null);
   const skuEnvelope = input => Array.isArray(input) ? {schema:'trl-sku-catalog/1.0',skus:input} : input || {schema:'trl-sku-catalog/1.0',skus:[]};
   function checked(bundle, context) {
     const api = model();
@@ -266,7 +267,7 @@
     mount(){
       if(this.mounted)return this;
       this.mounted=true;this.root.classList.add('master-manager');
-      this.root.innerHTML='<div class="mm-shell"><div class="mm-toolbar"><div><h2 id="mm-title"></h2><p id="mm-subtitle"></p></div><div class="mm-tools"><button type="button" class="button secondary" data-mm-action="export">Ekspor semua master</button><label class="button secondary mm-import-label">Impor master JSON<input id="mm-import-file" type="file" accept=".json,application/json" aria-label="Impor semua master JSON"></label></div></div><div id="mm-persistence" class="mm-persistence"></div><div id="mm-notice" class="mm-notice" role="status" hidden></div><div class="mm-filterbar"><label class="mm-search"><span>Cari master</span><input id="mm-search" type="search" placeholder="Cari kode, nama, atau supplier"></label><label class="mm-check"><input type="checkbox" id="mm-show-archived"><span>Tampilkan arsip</span></label><span id="mm-counts"></span></div><div id="mm-content"></div></div><dialog id="mm-editor-dialog" class="mm-dialog" aria-labelledby="mm-editor-title"><form id="mm-editor-form"><div class="mm-dialog-heading"><div><p class="mm-eyebrow" id="mm-editor-kicker">MASTER DATA</p><h2 id="mm-editor-title"></h2></div><button type="button" class="mm-close" aria-label="Tutup editor master" data-mm-action="cancel-editor">×</button></div><div id="mm-editor-error" class="mm-error" role="alert" hidden></div><div id="mm-editor-body"></div><div class="mm-editor-footer"><button type="button" class="text-button" data-mm-action="export-draft">Ekspor draft</button><div><button type="button" class="button secondary" data-mm-action="cancel-editor">Batal</button><button type="submit" class="button primary" id="mm-save">Simpan master</button></div></div></form></dialog><dialog id="mm-import-dialog" class="mm-dialog mm-import-dialog" aria-labelledby="mm-import-title"><div class="mm-dialog-heading"><div><p class="mm-eyebrow">TINJAU BERKAS</p><h2 id="mm-import-title">Impor master data</h2></div><button type="button" class="mm-close" aria-label="Tutup tinjauan impor" data-mm-action="cancel-import">×</button></div><div id="mm-import-error" class="mm-error" role="alert" hidden></div><div id="mm-import-content"></div><div class="mm-editor-footer"><span>Data baru diterapkan setelah penyimpanan berhasil.</span><div><button type="button" class="button secondary" data-mm-action="cancel-import">Batal</button><button type="button" class="button primary" data-mm-action="apply-import" id="mm-apply-import">Terapkan perubahan master</button></div></div></dialog>';
+      this.root.innerHTML='<div class="mm-shell"><div class="mm-toolbar"><div><h2 id="mm-title"></h2><p id="mm-subtitle"></p></div><div class="mm-tools"><button type="button" class="button secondary" data-mm-action="export">Ekspor semua master</button><label class="button secondary mm-import-label"><span id="mm-import-label-text">Impor JSON / CSV / Excel</span><input id="mm-import-file" type="file" accept=".json,.csv,.xlsx,application/json,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" aria-label="Impor master JSON CSV atau Excel"></label><span id="mm-import-templates"></span></div></div><div id="mm-persistence" class="mm-persistence"></div><div id="mm-notice" class="mm-notice" role="status" hidden></div><div class="mm-filterbar"><label class="mm-search"><span>Cari master</span><input id="mm-search" type="search" placeholder="Cari kode, nama, atau supplier"></label><label class="mm-check"><input type="checkbox" id="mm-show-archived"><span>Tampilkan arsip</span></label><span id="mm-counts"></span></div><div id="mm-content"></div></div><dialog id="mm-editor-dialog" class="mm-dialog" aria-labelledby="mm-editor-title"><form id="mm-editor-form"><div class="mm-dialog-heading"><div><p class="mm-eyebrow" id="mm-editor-kicker">MASTER DATA</p><h2 id="mm-editor-title"></h2></div><button type="button" class="mm-close" aria-label="Tutup editor master" data-mm-action="cancel-editor">×</button></div><div id="mm-editor-error" class="mm-error" role="alert" hidden></div><div id="mm-editor-body"></div><div class="mm-editor-footer"><button type="button" class="text-button" data-mm-action="export-draft">Ekspor draft</button><div><button type="button" class="button secondary" data-mm-action="cancel-editor">Batal</button><button type="submit" class="button primary" id="mm-save">Simpan master</button></div></div></form></dialog><dialog id="mm-import-dialog" class="mm-dialog mm-import-dialog" aria-labelledby="mm-import-title"><div class="mm-dialog-heading"><div><p class="mm-eyebrow">TINJAU BERKAS</p><h2 id="mm-import-title">Impor master data</h2></div><button type="button" class="mm-close" aria-label="Tutup tinjauan impor" data-mm-action="cancel-import">×</button></div><div id="mm-import-error" class="mm-error" role="alert" hidden></div><div id="mm-import-content"></div><div class="mm-editor-footer"><span>Data baru diterapkan setelah penyimpanan berhasil.</span><div><button type="button" class="button secondary" data-mm-action="cancel-import">Batal</button><button type="button" class="button primary" data-mm-action="apply-import" id="mm-apply-import">Terapkan perubahan master</button></div></div></dialog>';
       this._click=e=>this._handleClick(e);this._input=e=>this._handleInput(e);this._change=e=>this._handleChange(e);
       this._submit=e=>{if(e.target.id==='mm-editor-form'){e.preventDefault();this._saveEditor();}};
       this._cancel=e=>{if(e.target.id==='mm-editor-dialog'){e.preventDefault();this.closeEditor();}else if(e.target.id==='mm-import-dialog'){e.preventDefault();this.closeImport();}};
@@ -304,6 +305,9 @@
       if(!this.mounted)return;
       const section=SECTIONS[this.tab],n=counts(this.catalogs);
       this._q('#mm-title').textContent=section.title;this._q('#mm-subtitle').textContent=section.subtitle;
+      this._q('#mm-import-templates').innerHTML=tabular()?.templateLinks(this.tab)||'';
+      this._q('#mm-import-label-text').textContent='Impor JSON / CSV / Excel';
+      this._q('#mm-import-file').setAttribute('aria-label','Impor '+section.title+' JSON CSV atau Excel');
       this._q('#mm-persistence').textContent=this.mode==='mysql'?'Master bersama · perubahan tersimpan di database MySQL setelah dikonfirmasi server.':'Preview browser · perubahan master tersimpan pada browser ini. Gunakan ekspor JSON untuk memindahkannya ke server MySQL.';
       const search=this._q('#mm-search');search.value=this.filter[this.tab];search.placeholder=this.tab==='materials'?'Cari produk, supplier, atau indeks':this.tab==='shapes'?'Cari kode atau nama frame':'Cari kode atau nama tint';
       this._q('#mm-show-archived').checked=this.showArchived;
@@ -502,20 +506,39 @@
     }
     async readImport(file){
       if(!file||this.saving)return false;
+      const token=(this.importReadToken||0)+1;this.importReadToken=token;
+      const kind=this.tab;this.importReview=null;this._importErrors([]);
+      const dialog=this._q('#mm-import-dialog'),content=this._q('#mm-import-content'),apply=this._q('#mm-apply-import');
+      content.innerHTML='<p class="mm-import-file">'+esc(file.name)+'</p><p role="status">Membaca dan memvalidasi seluruh baris…</p>';apply.disabled=true;
+      if(!dialog.open)dialog.showModal();
       try{
         if(file.size>8*1024*1024)throw Error('Berkas master maksimal 8 MiB.');
-        let payload;
-        try{payload=JSON.parse(await file.text());}catch{throw Error('Berkas JSON tidak dapat dibaca. Gunakan hasil Ekspor semua master.');}
+        let payload,info=null;
+        if(/\.json$/i.test(file.name)){
+          try{payload=JSON.parse(await file.text());}catch{throw Error('Berkas JSON tidak dapat dibaca. Gunakan hasil Ekspor semua master.');}
+        }else{
+          const api=tabular();if(!api)throw Error('Pembaca impor belum dimuat. Muat ulang aplikasi.');
+          const parsed=await api.readFile(file);
+          if(token!==this.importReadToken)return false;
+          const prepared=api.buildMasterImport(this.catalogs,parsed,{kind,skuCatalog:this.getSkus()});
+          payload=prepared.payload;info=prepared.info;
+        }
+        if(token!==this.importReadToken)return false;
         const plan=importPlan(this.catalogs,payload,{skuCatalog:this.getSkus()});
-        this.importReview={...plan,filename:file.name,stale:false};
+        this.importReview={...plan,filename:file.name,info,stale:false};
         this._importErrors([]);
-        this._q('#mm-import-content').innerHTML='<p class="mm-import-file">'+esc(file.name)+'</p><p>Master akan diperbarui sebagai satu kesatuan. Record yang sudah ada harus dipertahankan; gunakan status arsip untuk menonaktifkannya.</p><div class="mm-table-scroll"><table class="mm-table"><thead><tr><th>Master</th><th>Baru</th><th>Berubah</th><th>Diarsipkan</th><th>Dihapus</th><th>Total</th></tr></thead><tbody>'+plan.changes.map(c=>'<tr><td>'+esc(c.label)+'</td><td>'+c.added+'</td><td>'+c.updated+'</td><td>'+c.archived+'</td><td>'+c.removed+'</td><td>'+c.total+'</td></tr>').join('')+'</tbody></table></div><p class="mm-form-note">Master SKU tidak termasuk berkas ini. Assignment SKU yang ada diperiksa agar referensi produk/blank tetap valid. Riwayat konsultasi juga tidak diganti.</p>'+(!plan.changed?'<div class="mm-notice">Isi master sama dengan data yang telah dimuat.</div>':'');
-        this._q('#mm-apply-import').disabled=!plan.changed;
-        const dialog=this._q('#mm-import-dialog');if(!dialog.open)dialog.showModal();return true;
-      }catch(e){this._notice(e.message,'warning');return false;}
+        content.innerHTML='<p class="mm-import-file">'+esc(file.name)+'</p>'+(info?tabular().reviewMarkup(info):'<p>Master akan diperbarui sebagai satu kesatuan. Record yang sudah ada harus dipertahankan; gunakan status arsip untuk menonaktifkannya.</p>')+'<div class="mm-table-scroll"><table class="mm-table"><thead><tr><th>Master</th><th>Baru</th><th>Berubah</th><th>Diarsipkan</th><th>Dihapus</th><th>Total</th></tr></thead><tbody>'+plan.changes.map(c=>'<tr><td>'+esc(c.label)+'</td><td>'+c.added+'</td><td>'+c.updated+'</td><td>'+c.archived+'</td><td>'+c.removed+'</td><td>'+c.total+'</td></tr>').join('')+'</tbody></table></div><p class="mm-form-note">Assignment SKU diperiksa terhadap identitas produk/blank. Semua perubahan diterapkan sekaligus setelah konfirmasi penyimpanan.</p>'+(!plan.changed?'<div class="mm-notice">Isi master sama dengan data yang telah dimuat. Tidak diperlukan penyimpanan ulang. Identitas dan sumber master sebelumnya tetap digunakan.</div>':'');
+        apply.disabled=!plan.changed;return true;
+      }catch(e){
+        if(token!==this.importReadToken)return false;
+        this.importReview=null;apply.disabled=true;
+        content.innerHTML='<p class="mm-import-file">'+esc(file.name)+'</p>'+(tabular()?.errorMarkup(e)||'<p>'+esc(e.message)+'</p>');
+        this._notice('Impor belum diterapkan. Periksa rincian kesalahan pada tinjauan berkas.','warning');return false;
+      }
     }
     closeImport(force=false){
       if(this.saving&&!force)return false;
+      this.importReadToken=(this.importReadToken||0)+1;
       const dialog=this._q('#mm-import-dialog');if(dialog?.open)dialog.close();this.importReview=null;return true;
     }
     async applyImport(){

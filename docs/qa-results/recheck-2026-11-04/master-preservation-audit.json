@@ -1,0 +1,494 @@
+{
+  "schema": "leinz-master-preservation-audit/1.0",
+  "auditedAt": "2026-11-04T05:31:20.437Z",
+  "userTimezone": "Asia/Jakarta",
+  "userDate": "2026-11-04",
+  "scope": "Read-only file and Git baseline audit. No database connection, source mutation, seed operation or production-data export was performed.",
+  "baselineCommit": "d4231ae9df7ebb994da715fabffb44060c05c98e",
+  "currentCommit": "d4231ae9df7ebb994da715fabffb44060c05c98e",
+  "applicationVersion": "2.2.0",
+  "targetDatabase": "MySQL 5.7.24",
+  "result": "passed",
+  "passed": 39,
+  "failed": 0,
+  "counts": {
+    "suppliers": 2,
+    "products": 19,
+    "blanks": 186,
+    "powerRules": 2026,
+    "frameShapes": 13,
+    "tinting": 66,
+    "skus": 0
+  },
+  "baselineCounts": {
+    "suppliers": 2,
+    "products": 19,
+    "blanks": 186,
+    "powerRules": 2026,
+    "frameShapes": 13,
+    "tinting": 66,
+    "skus": 0
+  },
+  "assetHashes": {
+    "materials": {
+      "path": "dist/assets/materials.json",
+      "bytes": 474515,
+      "baselineSha256": "031ed75a3a52324a2675b618f9a1e0eba311c0b3dde2747482d26a20532e712d",
+      "currentSha256": "031ed75a3a52324a2675b618f9a1e0eba311c0b3dde2747482d26a20532e712d",
+      "inventorySha256": "031ed75a3a52324a2675b618f9a1e0eba311c0b3dde2747482d26a20532e712d",
+      "canonicalSha256": "c0efc3b8b9535b38fb0a48760521275ff159d26af802bf8d21c185ad42fea456",
+      "compactJsonUtf8Bytes": 460095
+    },
+    "shapes": {
+      "path": "dist/assets/shapes.json",
+      "bytes": 49925,
+      "baselineSha256": "70ddece1588bb5b8141fa48ca88d7f55e2d0c3095d71bfa8c374f1e030ac424f",
+      "currentSha256": "70ddece1588bb5b8141fa48ca88d7f55e2d0c3095d71bfa8c374f1e030ac424f",
+      "inventorySha256": "70ddece1588bb5b8141fa48ca88d7f55e2d0c3095d71bfa8c374f1e030ac424f",
+      "canonicalSha256": "6f2257c279bb0fe691d0deda99c1255b0171c1653134d254b88098ed721822a6",
+      "compactJsonUtf8Bytes": 49925
+    },
+    "tints": {
+      "path": "dist/assets/tints.json",
+      "bytes": 68277,
+      "baselineSha256": "29fa33e53834078526be45982417371fb441b046e605f2df855ce8cf38a07465",
+      "currentSha256": "29fa33e53834078526be45982417371fb441b046e605f2df855ce8cf38a07465",
+      "inventorySha256": "29fa33e53834078526be45982417371fb441b046e605f2df855ce8cf38a07465",
+      "canonicalSha256": "ed19014abcb814dc9e723324ad1ebb8a385a26fb80bddbf0176c3fbd91700a65",
+      "compactJsonUtf8Bytes": 50616
+    }
+  },
+  "sqlHashes": {
+    "leinz-schema.sql": {
+      "bytes": 3644,
+      "baselineSha256": "16c43c499dcaa1109f52b62a98465b663b29d359c346a944945d6c47730e4474",
+      "currentSha256": "16c43c499dcaa1109f52b62a98465b663b29d359c346a944945d6c47730e4474",
+      "inventorySha256": "16c43c499dcaa1109f52b62a98465b663b29d359c346a944945d6c47730e4474"
+    },
+    "leinz-master-data.sql": {
+      "bytes": 1124147,
+      "baselineSha256": "805ad28ea88248d4da0e72dd503f9979e3dd13a78137866e1c162840816c50e6",
+      "currentSha256": "805ad28ea88248d4da0e72dd503f9979e3dd13a78137866e1c162840816c50e6",
+      "inventorySha256": "805ad28ea88248d4da0e72dd503f9979e3dd13a78137866e1c162840816c50e6"
+    },
+    "leinz-schema-and-master-data.sql": {
+      "bytes": 1127394,
+      "baselineSha256": "d1cbca86714293d6399d319b6eb499600c7385dcf4d7699a2568fd245328568c",
+      "currentSha256": "d1cbca86714293d6399d319b6eb499600c7385dcf4d7699a2568fd245328568c",
+      "inventorySha256": "d1cbca86714293d6399d319b6eb499600c7385dcf4d7699a2568fd245328568c"
+    }
+  },
+  "sqlPayloads": {
+    "leinz-master-data.sql": [
+      {
+        "key": "materials",
+        "table": "leinz_catalog_documents",
+        "decodedBytes": 460095,
+        "jsonEqualsCurrentMaster": true,
+        "compactBytesEqual": true,
+        "sourceCanonicalSha256Matches": true
+      },
+      {
+        "key": "shapes",
+        "table": "leinz_catalog_documents",
+        "decodedBytes": 49925,
+        "jsonEqualsCurrentMaster": true,
+        "compactBytesEqual": true,
+        "sourceCanonicalSha256Matches": true
+      },
+      {
+        "key": "tints",
+        "table": "leinz_catalog_documents",
+        "decodedBytes": 50616,
+        "jsonEqualsCurrentMaster": true,
+        "compactBytesEqual": true,
+        "sourceCanonicalSha256Matches": true
+      },
+      {
+        "key": "skus",
+        "table": "leinz_workspace_documents",
+        "schema": "trl-sku-catalog/1.0",
+        "skuCount": 0,
+        "revision": 0
+      }
+    ],
+    "leinz-schema-and-master-data.sql": [
+      {
+        "key": "materials",
+        "table": "leinz_catalog_documents",
+        "decodedBytes": 460095,
+        "jsonEqualsCurrentMaster": true,
+        "compactBytesEqual": true,
+        "sourceCanonicalSha256Matches": true
+      },
+      {
+        "key": "shapes",
+        "table": "leinz_catalog_documents",
+        "decodedBytes": 49925,
+        "jsonEqualsCurrentMaster": true,
+        "compactBytesEqual": true,
+        "sourceCanonicalSha256Matches": true
+      },
+      {
+        "key": "tints",
+        "table": "leinz_catalog_documents",
+        "decodedBytes": 50616,
+        "jsonEqualsCurrentMaster": true,
+        "compactBytesEqual": true,
+        "sourceCanonicalSha256Matches": true
+      },
+      {
+        "key": "skus",
+        "table": "leinz_workspace_documents",
+        "schema": "trl-sku-catalog/1.0",
+        "skuCount": 0,
+        "revision": 0
+      }
+    ]
+  },
+  "sqlSemantics": {
+    "leinz-master-data.sql": {
+      "transaction": true,
+      "catalogRevisionRowLock": true,
+      "catalogInsertsIgnoreExisting": true,
+      "skuInsertIgnoresExisting": true,
+      "revisionChangesOnlyIfCatalogInserted": true,
+      "noMasterOrSkuUpdates": true,
+      "noDeleteDropTruncateReplace": true,
+      "noInsertedAccountsOrUserDocuments": true
+    },
+    "leinz-schema-and-master-data.sql": {
+      "transaction": true,
+      "catalogRevisionRowLock": true,
+      "catalogInsertsIgnoreExisting": true,
+      "skuInsertIgnoresExisting": true,
+      "revisionChangesOnlyIfCatalogInserted": true,
+      "noMasterOrSkuUpdates": true,
+      "noDeleteDropTruncateReplace": true,
+      "noInsertedAccountsOrUserDocuments": true
+    }
+  },
+  "supplierBreakdown": [
+    {
+      "supplier": "DMO",
+      "products": 5,
+      "blanks": 45,
+      "powerRules": 521,
+      "diametersMm": [
+        65,
+        70,
+        75
+      ]
+    },
+    {
+      "supplier": "SOA",
+      "products": 14,
+      "blanks": 141,
+      "powerRules": 1505,
+      "diametersMm": [
+        65,
+        69,
+        70,
+        72,
+        74,
+        75,
+        76,
+        80
+      ]
+    }
+  ],
+  "indexBreakdown": [
+    {
+      "index": "1.50",
+      "products": 2,
+      "blanks": 12,
+      "powerRules": 157,
+      "diametersMm": [
+        70,
+        72,
+        76,
+        80
+      ]
+    },
+    {
+      "index": "1.56",
+      "products": 2,
+      "blanks": 14,
+      "powerRules": 71,
+      "diametersMm": [
+        70,
+        75,
+        80
+      ]
+    },
+    {
+      "index": "1.57",
+      "products": 3,
+      "blanks": 25,
+      "powerRules": 272,
+      "diametersMm": [
+        75
+      ]
+    },
+    {
+      "index": "1.59",
+      "products": 1,
+      "blanks": 15,
+      "powerRules": 120,
+      "diametersMm": [
+        76,
+        80
+      ]
+    },
+    {
+      "index": "1.60",
+      "products": 3,
+      "blanks": 40,
+      "powerRules": 641,
+      "diametersMm": [
+        70,
+        72,
+        75
+      ]
+    },
+    {
+      "index": "1.67",
+      "products": 3,
+      "blanks": 34,
+      "powerRules": 291,
+      "diametersMm": [
+        70,
+        75
+      ]
+    },
+    {
+      "index": "1.74",
+      "products": 5,
+      "blanks": 46,
+      "powerRules": 474,
+      "diametersMm": [
+        65,
+        69,
+        70,
+        74,
+        75,
+        80
+      ]
+    }
+  ],
+  "simulatorIndices": [
+    "1.50",
+    "1.56",
+    "1.57",
+    "1.60",
+    "1.67",
+    "1.74"
+  ],
+  "catalogOnlyIndices": [
+    "1.59"
+  ],
+  "index159": {
+    "index": "1.59",
+    "products": 1,
+    "blanks": 15,
+    "powerRules": 120,
+    "diametersMm": [
+      76,
+      80
+    ]
+  },
+  "provenance": {
+    "declaredRows": 2689,
+    "preservedRowReferences": 2689,
+    "uniqueReferencedRows": 2689,
+    "exactDuplicateExtraRows": 663
+  },
+  "shapeCodes": [
+    "001",
+    "002",
+    "003",
+    "004",
+    "005",
+    "006",
+    "007",
+    "008",
+    "009",
+    "round",
+    "cat-eye",
+    "rectangle",
+    "square"
+  ],
+  "tintKinds": {
+    "Gradient": 20,
+    "Solid": 46
+  },
+  "skuPreservation": {
+    "packagedSeedCount": 0,
+    "baselineSeedCount": 0,
+    "emptySeedIsDataLoss": false,
+    "explanation": "Katalog SKU awal memang kosong pada baseline 2.2.0. Tidak ada ekspor Master SKU operasional lengkap yang disediakan; tangkapan layar CREA2 tidak memuat seluruh assignment supplier/blank dan range power. SQL INSERT IGNORE mempertahankan dokumen SKU yang sudah ada pada instalasi tujuan. Contoh DEMO-IMPORT nonaktif pada template tidak dimasukkan ke seed."
+  },
+  "existingDataPreservation": {
+    "method": "CREATE TABLE IF NOT EXISTS and primary-key INSERT IGNORE; catalog row lock and transaction; revision increases only when an absent catalog is inserted.",
+    "scope": "Preserves existing complete master/SKU documents rather than merging reference rows into already-existing documents.",
+    "limitation": "Package master data are the released reference catalogs, not a backup of operational databases or browser-local edits."
+  },
+  "checks": [
+    {
+      "name": "Current commit matches released 2.2.0 baseline",
+      "passed": true
+    },
+    {
+      "name": "Working tree is clean before read-only audit",
+      "passed": true
+    },
+    {
+      "name": "Inventory matches baseline byte for byte",
+      "passed": true
+    },
+    {
+      "name": "materials: byte hash equals baseline and inventory",
+      "passed": true
+    },
+    {
+      "name": "materials: canonical hash and compact JSON size match inventory",
+      "passed": true
+    },
+    {
+      "name": "shapes: byte hash equals baseline and inventory",
+      "passed": true
+    },
+    {
+      "name": "shapes: canonical hash and compact JSON size match inventory",
+      "passed": true
+    },
+    {
+      "name": "tints: byte hash equals baseline and inventory",
+      "passed": true
+    },
+    {
+      "name": "tints: canonical hash and compact JSON size match inventory",
+      "passed": true
+    },
+    {
+      "name": "leinz-schema.sql: byte hash equals baseline and inventory",
+      "passed": true
+    },
+    {
+      "name": "leinz-master-data.sql: byte hash equals baseline and inventory",
+      "passed": true
+    },
+    {
+      "name": "leinz-schema-and-master-data.sql: byte hash equals baseline and inventory",
+      "passed": true
+    },
+    {
+      "name": "leinz-master-data.sql: exactly three master payloads and one SKU payload",
+      "passed": true
+    },
+    {
+      "name": "leinz-master-data.sql: embedded materials is exact complete source master",
+      "passed": true
+    },
+    {
+      "name": "leinz-master-data.sql: embedded shapes is exact complete source master",
+      "passed": true
+    },
+    {
+      "name": "leinz-master-data.sql: embedded tints is exact complete source master",
+      "passed": true
+    },
+    {
+      "name": "leinz-master-data.sql: seed SKU is the unchanged empty catalog",
+      "passed": true
+    },
+    {
+      "name": "leinz-master-data.sql: existing master and SKU document preservation semantics",
+      "passed": true
+    },
+    {
+      "name": "leinz-schema-and-master-data.sql: exactly three master payloads and one SKU payload",
+      "passed": true
+    },
+    {
+      "name": "leinz-schema-and-master-data.sql: embedded materials is exact complete source master",
+      "passed": true
+    },
+    {
+      "name": "leinz-schema-and-master-data.sql: embedded shapes is exact complete source master",
+      "passed": true
+    },
+    {
+      "name": "leinz-schema-and-master-data.sql: embedded tints is exact complete source master",
+      "passed": true
+    },
+    {
+      "name": "leinz-schema-and-master-data.sql: seed SKU is the unchanged empty catalog",
+      "passed": true
+    },
+    {
+      "name": "leinz-schema-and-master-data.sql: existing master and SKU document preservation semantics",
+      "passed": true
+    },
+    {
+      "name": "Schema creates seven tables with IF NOT EXISTS",
+      "passed": true
+    },
+    {
+      "name": "Catalog and workspace document keys are primary keys",
+      "passed": true
+    },
+    {
+      "name": "Combined SQL contains the exact master-only SQL body",
+      "passed": true
+    },
+    {
+      "name": "Product, blank and rule identifiers remain unique",
+      "passed": true
+    },
+    {
+      "name": "All blank/product and rule/blank references resolve",
+      "passed": true
+    },
+    {
+      "name": "Every stored power range has ordered numeric endpoints",
+      "passed": true
+    },
+    {
+      "name": "Current master counts equal release baseline and inventory",
+      "passed": true
+    },
+    {
+      "name": "Supplier breakdown and diameters equal inventory",
+      "passed": true
+    },
+    {
+      "name": "Index breakdown and diameters equal inventory",
+      "passed": true
+    },
+    {
+      "name": "Six simulator indices retained without enabling 1.59",
+      "passed": true
+    },
+    {
+      "name": "Catalog-only 1.59 retains one product, 15 blanks and 120 rules",
+      "passed": true
+    },
+    {
+      "name": "All source-row provenance and duplicate counts retained",
+      "passed": true
+    },
+    {
+      "name": "All 13 frame variants retained with unique codes",
+      "passed": true
+    },
+    {
+      "name": "66 tint identities and Solid/Gradient split retained",
+      "passed": true
+    },
+    {
+      "name": "Read-only audit left source working tree unchanged",
+      "passed": true
+    }
+  ]
+}

@@ -6,6 +6,7 @@
   const DEFAULT_INDICES = ['1.50','1.56','1.57','1.60','1.67','1.74'];
   const POWER_KEYS = ['sphMin','sphMax','cylMin','cylMax','addMin','addMax'];
   const clone = value => JSON.parse(JSON.stringify(value));
+  const tabular = () => global.LeinzTabularImport || (typeof require==='function'?require('./tabular-import.js'):null);
   const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const codeKey = value => String(value ?? '').trim().toLocaleUpperCase('en-US');
   const id = prefix => prefix + '-' + (global.crypto?.randomUUID?.() || Date.now().toString(36) + '-' + Math.random().toString(36).slice(2));
@@ -14,6 +15,12 @@
   const numberText = value => Number(value).toLocaleString('id-ID',{maximumFractionDigits:2});
   const emptyPower = () => Object.fromEntries(POWER_KEYS.map(key => [key,'']));
   const emptyVariant = index => ({index,enabled:true,power:emptyPower(),assignments:[]});
+  const skuContent = value => {
+    const item=clone(value);delete item.createdAt;delete item.updatedAt;
+    item.variants.sort((a,b)=>a.index.localeCompare(b.index));
+    for(const v of item.variants){v.assignments.sort((a,b)=>a.productId.localeCompare(b.productId));for(const a of v.assignments)a.blankIds.sort();}
+    return JSON.stringify(item,(_,v)=>v&&typeof v==='object'&&!Array.isArray(v)?Object.fromEntries(Object.keys(v).sort().map(k=>[k,v[k]])):v);
+  };
 
   function validateSku(input, context = {}) {
     const errors = [], materials = context.materials || {}, indices = context.indices || DEFAULT_INDICES;
@@ -102,7 +109,7 @@
   function planImport(existing, payload, context = {}) {
     const checked = validateCatalog(payload,context);
     if (!checked.ok) return {ok:false,errors:checked.errors,skus:[],changes:[]};
-    const next = clone(existing), changes = [], errors = [], targets = new Set(), now = context.now || new Date().toISOString();
+    const next = clone(existing), changes = [], errors = [], unchanged = [], targets = new Set(), now = context.now || new Date().toISOString();
     for (const incoming of checked.skus) {
       const codeMatch = next.find(s => codeKey(s.code) === codeKey(incoming.code));
       const idMatch = next.find(s => s.id === incoming.id);
@@ -113,6 +120,7 @@
       targets.add(targetId);
       if (target) {
         const replacement = {...incoming,id:target.id,createdAt:target.createdAt,updatedAt:now};
+        if(skuContent(target)===skuContent(replacement)){unchanged.push({code:target.code,id:target.id});continue;}
         next[next.findIndex(s => s.id === target.id)] = replacement;
         changes.push({action:'update',code:incoming.code,previousCode:target.code,id:target.id,active:incoming.active});
       } else {
@@ -122,7 +130,7 @@
     }
     const finalCheck = validateCatalog({schema:SCHEMA,skus:next},context);
     errors.push(...finalCheck.errors);
-    return {ok:errors.length === 0,errors,skus:errors.length ? [] : finalCheck.skus,changes:errors.length ? [] : changes};
+    return {ok:errors.length === 0,errors,skus:errors.length ? [] : finalCheck.skus,changes:errors.length ? [] : changes,unchanged:errors.length ? [] : unchanged};
   }
 
   class SkuManager {
@@ -198,7 +206,7 @@
     _notice(message) { this.onNotify(message); }
     _renderShell() {
       const persistence=this.storageMode==='mysql'?'Tersimpan di database MySQL dan tersedia pada perangkat yang memakai server ini.':'Tersimpan di browser ini.';
-      this.container.innerHTML='<div class="sku-manager"><div class="sku-toolbar"><div><h2>Master SKU produk lensa</h2><p>Atur indeks, batas power lensa jadi, dan blank yang boleh dipakai untuk setiap produk.</p></div><div class="sku-toolbar-actions"><button type="button" class="button primary" data-sku-action="new">+ Tambah SKU</button><button type="button" class="button secondary" data-sku-action="export">Ekspor JSON</button><label class="button secondary sku-import-label">Impor JSON<input type="file" id="sku-import-file" accept=".json,application/json" aria-label="Impor master SKU JSON"></label></div></div><div class="sku-local-note">'+persistence+' Ekspor JSON untuk cadangan atau pemindahan data. Ketersediaan adalah pengaturan katalog SKU, belum terhubung ke jumlah stok gudang.</div><div id="sku-storage-warning" class="sku-error" hidden></div><div class="sku-list-tools"><input type="search" id="sku-master-search" placeholder="Cari kode atau nama SKU" aria-label="Cari SKU produk"><label class="sku-inline-check"><input type="checkbox" id="sku-show-inactive">Tampilkan SKU nonaktif</label></div><div id="sku-master-list" class="sku-master-list"></div><section id="sku-editor" class="panel sku-editor" hidden></section><section id="sku-import-review" class="panel sku-import-review" hidden></section></div>';
+      this.container.innerHTML='<div class="sku-manager"><div class="sku-toolbar"><div><h2>Master SKU produk lensa</h2><p>Atur indeks, batas power lensa jadi, dan blank yang boleh dipakai untuk setiap produk.</p></div><div class="sku-toolbar-actions"><button type="button" class="button primary" data-sku-action="new">+ Tambah SKU</button><button type="button" class="button secondary" data-sku-action="export">Ekspor JSON</button><label class="button secondary sku-import-label">Impor JSON / CSV / Excel<input type="file" id="sku-import-file" accept=".json,.csv,.xlsx,application/json,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" aria-label="Impor master SKU JSON CSV atau Excel"></label>'+(tabular()?.templateLinks('skus')||'')+'</div></div><div class="sku-local-note">'+persistence+' Ekspor JSON untuk cadangan atau pemindahan data. Ketersediaan adalah pengaturan katalog SKU, belum terhubung ke jumlah stok gudang.</div><div id="sku-storage-warning" class="sku-error" hidden></div><div class="sku-list-tools"><input type="search" id="sku-master-search" placeholder="Cari kode atau nama SKU" aria-label="Cari SKU produk"><label class="sku-inline-check"><input type="checkbox" id="sku-show-inactive">Tampilkan SKU nonaktif</label></div><div id="sku-master-list" class="sku-master-list"></div><section id="sku-editor" class="panel sku-editor" hidden></section><section id="sku-import-review" class="panel sku-import-review" hidden></section></div>';
       this._renderList();
     }
     _renderList() {
@@ -265,21 +273,32 @@
       a.href=url;a.download='leinz-sku-'+(recovery?'pemulihan-':'master-')+new Date().toISOString().slice(0,10)+'.json';global.document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);this._notice(recovery?'Data tersimpan diekspor untuk pemulihan.':'Master SKU diekspor sebagai JSON.');
     }
     async _readImport(file) {
-      if(!file)return;
+      if(!file||this.saving)return;
+      const token=(this.importReadToken||0)+1;this.importReadToken=token;this.importPlan=null;
+      const box=this._q('#sku-import-review');box.hidden=false;
+      box.innerHTML='<p class="eyebrow small">TINJAU IMPOR</p><h3>'+escapeHtml(file.name)+'</h3><p role="status">Membaca dan memvalidasi seluruh baris…</p><button type="button" class="button secondary" data-sku-action="cancel-import">Batal</button>';
       try {
-        if(file.size>2*1024*1024)throw Error('Berkas JSON maksimal 2 MB.');
-        const payload=JSON.parse(await file.text());
+        if(file.size>8*1024*1024)throw Error('Berkas impor maksimal 8 MiB.');
+        let payload,info=null;
+        if(/\.json$/i.test(file.name)){
+          try{payload=JSON.parse(await file.text());}catch{throw Error('JSON tidak dapat dibaca. Gunakan hasil ekspor Master SKU.');}
+        }else{
+          const api=tabular();if(!api)throw Error('Pembaca impor belum dimuat. Muat ulang aplikasi.');
+          const parsed=await api.readFile(file);
+          if(token!==this.importReadToken)return;
+          const prepared=api.buildSkuImport(this.skus,this.materials,parsed);payload=prepared.payload;info=prepared.info;
+        }
+        if(token!==this.importReadToken)return;
         const plan=planImport(this.skus,payload,this.context);this.importPlan=plan;this.importBase=this.storageSnapshot;
-        const box=this._q('#sku-import-review');box.hidden=false;
         if(!plan.ok){box.innerHTML='<h3>Impor belum dapat diterapkan</h3><div class="sku-error"><ul>'+plan.errors.slice(0,15).map(e=>'<li>'+escapeHtml(e)+'</li>').join('')+'</ul></div><button type="button" class="button secondary" data-sku-action="cancel-import">Tutup</button>';}
         else {
           const created=plan.changes.filter(c=>c.action==='create').length,updated=plan.changes.length-created;
           const changedSource=payload.sourceSha256&&payload.sourceSha256!==this.materials.summary?.sourceSha256;
-          box.innerHTML='<p class="eyebrow small">TINJAU IMPOR JSON</p><h3>'+created+' SKU baru · '+updated+' SKU diperbarui</h3><p>Impor menggabungkan data berdasarkan kode atau ID SKU. SKU lain tidak dihapus. Identitas SKU yang sudah ada dipertahankan.</p>'+(changedSource?'<div class="sku-local-note">Berkas berasal dari versi katalog bahan yang berbeda. Seluruh assignment telah diperiksa terhadap katalog bahan yang saat ini tersedia.</div>':'')+'<ul class="sku-import-changes">'+plan.changes.map(c=>'<li><strong>'+escapeHtml(c.code)+'</strong><span>'+(c.action==='create'?'Baru':'Perbarui')+' · '+(c.active?'aktif':'nonaktif')+'</span></li>').join('')+'</ul><div class="sku-import-actions"><button type="button" class="button secondary" data-sku-action="cancel-import">Batal</button><button type="button" class="button primary" data-sku-action="apply-import" '+(!plan.changes.length?'disabled':'')+'>Terapkan impor '+plan.changes.length+' SKU</button></div>';
+          box.innerHTML='<p class="eyebrow small">TINJAU IMPOR '+escapeHtml(info?.format||'JSON')+'</p><h3>'+created+' SKU baru · '+updated+' SKU diperbarui</h3><p>'+escapeHtml(file.name)+'</p>'+(info?tabular().reviewMarkup(info):'')+'<p>Impor menggabungkan data berdasarkan kode atau ID SKU. Identitas SKU yang sudah ada dipertahankan.</p>'+(plan.unchanged?.length?'<p class="sku-local-note">'+plan.unchanged.length+' SKU sama dengan data yang sudah ada; tidak disimpan ulang.</p>':'')+(changedSource?'<div class="sku-local-note">Berkas berasal dari versi katalog bahan yang berbeda. Seluruh assignment telah diperiksa terhadap katalog bahan yang saat ini tersedia.</div>':'')+'<ul class="sku-import-changes">'+plan.changes.map(c=>'<li><strong>'+escapeHtml(c.code)+'</strong><span>'+(c.action==='create'?'Baru':'Perbarui')+' · '+(c.active?'aktif':'nonaktif')+'</span></li>').join('')+'</ul><div class="sku-import-actions"><button type="button" class="button secondary" data-sku-action="cancel-import">Batal</button><button type="button" class="button primary" data-sku-action="apply-import" '+(!plan.changes.length?'disabled':'')+'>Terapkan impor '+plan.changes.length+' SKU</button></div>';
         }
         box.scrollIntoView({behavior:'smooth',block:'start'});
-      }catch(e){this.importPlan=null;const box=this._q('#sku-import-review');box.hidden=false;box.innerHTML='<h3>Impor belum dapat dibaca</h3><div class="sku-error">'+escapeHtml(e.message||'Periksa format JSON.')+'</div><button type="button" class="button secondary" data-sku-action="cancel-import">Tutup</button>';this._notice('Impor SKU belum diterapkan.');}
-      finally {this._q('#sku-import-file').value='';}
+      }catch(e){if(token!==this.importReadToken)return;this.importPlan=null;box.hidden=false;box.innerHTML='<h3>Impor belum dapat dibaca</h3>'+(tabular()?.errorMarkup(e)||'<div class="sku-error">'+escapeHtml(e.message)+'</div>')+'<button type="button" class="button secondary" data-sku-action="cancel-import">Tutup</button>';this._notice('Impor SKU belum diterapkan.');}
+      finally {if(token===this.importReadToken)this._q('#sku-import-file').value='';}
     }
     _bind() {
       this._click=async e=>{
@@ -302,8 +321,8 @@
           else {const ids=blanks.filter(b=>b.diameter===Number(button.dataset.diameter)).map(b=>b.id),remove=ids.every(x=>a.blankIds.includes(x));a.blankIds=remove?a.blankIds.filter(x=>!ids.includes(x)):[...new Set([...a.blankIds,...ids])];}
           this._renderVariant();
         }
-        else if(action==='cancel-import'){this.importPlan=null;this._q('#sku-import-review').hidden=true;}
-        else if(action==='apply-import'&&this.importPlan?.ok){if(await this._commit(this.importPlan.skus,this.importBase,{replaceInvalid:true})){this.importPlan=null;this._q('#sku-import-review').hidden=true;this._closeEditor();this._notice('Master SKU berhasil diimpor.');}}
+        else if(action==='cancel-import'){this.importReadToken=(this.importReadToken||0)+1;this.importPlan=null;this._q('#sku-import-review').hidden=true;}
+        else if(action==='apply-import'&&this.importPlan?.ok&&this.importPlan.changes.length){if(await this._commit(this.importPlan.skus,this.importBase,{replaceInvalid:true})){this.importPlan=null;this._q('#sku-import-review').hidden=true;this._closeEditor();this._notice('Master SKU berhasil diimpor.');}}
       };
       this._input=e=>{
         if(this.saving)return;

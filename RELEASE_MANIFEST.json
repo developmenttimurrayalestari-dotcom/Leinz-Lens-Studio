@@ -1,15 +1,11 @@
 {
-  "version": "2.1.1",
-  "releaseDate": "2026-11-04",
-  "sourceCommit": "01c9e2bb488061b0fad5e586718dd117f4d1aeed",
-  "mysqlTarget": "5.7.24",
-  "nodeTested": "24.22.1",
-  "codeFilesVerified": 108,
-  "unitTestsPassed": 121,
-  "mysqlIntegrationGroupsPassed": 24,
-  "sqlImportRestoreChecksPassed": 8,
-  "mysqlRestartTestsPassed": 1,
-  "startupSmokePassed": true,
+  "schema": "leinz-release-package/1.1",
+  "applicationVersion": "2.2.0",
+  "qaRecheckedAt": "2026-11-04T12:33:06.459654+07:00",
+  "timezone": "Asia/Jakarta",
+  "sourceCommit": "d4231ae9df7ebb994da715fabffb44060c05c98e",
+  "sourceUnchanged": true,
+  "targetDatabase": "MySQL 5.7.24",
   "masterCounts": {
     "suppliers": 2,
     "products": 19,
@@ -19,5 +15,780 @@
     "tinting": 66,
     "skus": 0
   },
-  "dataScope": "Packaged reference masters; operational/browser-local SKU and edits require their own export."
+  "dataScope": "Complete packaged reference catalogs; not an export of an operational database or browser-local edits.",
+  "report": "QA_TERBARU.md",
+  "validation": {
+    "mainNodeTestsPassed": 157,
+    "separateSkuNodeTestsPassed": 24,
+    "mysqlIntegrationGroupsPassed": 29,
+    "sqlChecksPassed": 8,
+    "masterAuditChecksPassed": 39,
+    "cleanInstallBuildTest": true,
+    "databaseAndApplicationRestart": true,
+    "codeFilesIdenticalToTestedExtraction": 131
+  },
+  "sourceFiles": {
+    ".env.example": {
+      "bytes": 623,
+      "sha256": "e0323d01be74044897bfed0744f0dd7fc6a1b145c125c9515893abbccafbcd6f"
+    },
+    ".gitignore": {
+      "bytes": 96,
+      "sha256": "5ca12d08ce5cd3e971a9a2918ee4191bfa5e051db39362af0eb795e1ec49079a"
+    },
+    "MULAI_DI_SINI.md": {
+      "bytes": 5159,
+      "sha256": "b1dcf5d1e0fcc8e99161f0f606275c8ffccf536141ec54d9d7df7903218c047b"
+    },
+    "README.md": {
+      "bytes": 31805,
+      "sha256": "661fc625e1266211326865ce851c42a73eafd1e6f4c53e5caade6b330855ffcf"
+    },
+    "database/001_initial.sql": {
+      "bytes": 2524,
+      "sha256": "88dd870fd7185e4fcee952d1f1cd4064e1e26f992edfe3263b9d4c22f10938af"
+    },
+    "database/002_managed_catalogs.sql": {
+      "bytes": 592,
+      "sha256": "ccfb82e45c0926d84ca330b94e0108d28de5b2e342a96d6950a88095e94c5dc1"
+    },
+    "database/leinz-master-data.sql": {
+      "bytes": 1124147,
+      "sha256": "805ad28ea88248d4da0e72dd503f9979e3dd13a78137866e1c162840816c50e6"
+    },
+    "database/leinz-schema-and-master-data.sql": {
+      "bytes": 1127394,
+      "sha256": "d1cbca86714293d6399d319b6eb499600c7385dcf4d7699a2568fd245328568c"
+    },
+    "database/leinz-schema.sql": {
+      "bytes": 3644,
+      "sha256": "16c43c499dcaa1109f52b62a98465b663b29d359c346a944945d6c47730e4474"
+    },
+    "database/master-data-inventory.json": {
+      "bytes": 5625,
+      "sha256": "1089ffdebeb40efe8848c4b53354f8be181d8240227dd6c7258ac6a9d7297b74"
+    },
+    "dist/app.js": {
+      "bytes": 86148,
+      "sha256": "f49b54eb6578dddea7767e024602903f2d8d4adfbb00f45dcfbbdd03b53d4b9a"
+    },
+    "dist/assets/materials.json": {
+      "bytes": 474515,
+      "sha256": "031ed75a3a52324a2675b618f9a1e0eba311c0b3dde2747482d26a20532e712d"
+    },
+    "dist/assets/reference-page-1.png": {
+      "bytes": 250745,
+      "sha256": "4b1672d4c5bbd6fc08a437600dd2cc3fee0262f2114a5ce5e0cc86bbb7d19014"
+    },
+    "dist/assets/reference-page-2.png": {
+      "bytes": 260034,
+      "sha256": "3ac101c13b55bc3dafd180c7a096439da4648c2f5f8d14ed07039cdc3ae8dad2"
+    },
+    "dist/assets/shapes.json": {
+      "bytes": 49925,
+      "sha256": "70ddece1588bb5b8141fa48ca88d7f55e2d0c3095d71bfa8c374f1e030ac424f"
+    },
+    "dist/assets/swatches/chart-01.png": {
+      "bytes": 3221,
+      "sha256": "5be1ed8896ba52ecd4f02c71573c009aca83d5d990dcab9ae4cd6ecd016635ed"
+    },
+    "dist/assets/swatches/chart-02.png": {
+      "bytes": 3573,
+      "sha256": "ed110aa84e4069deefbc6915ae5f8a4bcca5358c92dd16753e4d3d9f573835be"
+    },
+    "dist/assets/swatches/chart-03.png": {
+      "bytes": 3570,
+      "sha256": "ea8ef4ce401794056b5fab8593e15ed1b98555716914f8fccfcbf0b19a966082"
+    },
+    "dist/assets/swatches/chart-04.png": {
+      "bytes": 2947,
+      "sha256": "c1095e9cc2eeb3379f75719c7ed8476b7b3a61a20f200d0abdcafa90c8ae05bc"
+    },
+    "dist/assets/swatches/chart-05.png": {
+      "bytes": 3955,
+      "sha256": "8adcaa9185a2139b7ac7639cbf30dffc6a5fdd24dd71ed99ae6c2675140181d3"
+    },
+    "dist/assets/swatches/chart-06.png": {
+      "bytes": 3061,
+      "sha256": "6243f0edc2da831730b80890c64c8659c1e0d2cc7210b8bbac06fadee1ff56aa"
+    },
+    "dist/assets/swatches/chart-07.png": {
+      "bytes": 3694,
+      "sha256": "4326ab59c5d7ee4b4ca3b07d0f4626a63864cc08c5b99b2ce552cfe8c3ab9425"
+    },
+    "dist/assets/swatches/chart-08.png": {
+      "bytes": 3564,
+      "sha256": "016045f86f5852fbe317cd0ad4b104c3dc2531b0bf04cb1fe506a011104dfc16"
+    },
+    "dist/assets/swatches/chart-09.png": {
+      "bytes": 3043,
+      "sha256": "a3b5e2c2941656639057a002c4a4d5f0e17455a5fbc9ecae433fdbf2f8d53c44"
+    },
+    "dist/assets/swatches/chart-10.png": {
+      "bytes": 2438,
+      "sha256": "aed448574309f65c5968efaeecba9fb6cacc1790a59f2184e2333c0bdbd317b8"
+    },
+    "dist/assets/swatches/chart-11.png": {
+      "bytes": 3604,
+      "sha256": "5e5264b1e2f5eba0ce9c9168773c7c49565d3cc964081e352dd1b5457d5c9bc5"
+    },
+    "dist/assets/swatches/chart-12.png": {
+      "bytes": 3778,
+      "sha256": "abd190d329793fc2a422ef322b4d7f457ee044cfac7a9c86692d9cae4199534a"
+    },
+    "dist/assets/swatches/chart-13.png": {
+      "bytes": 3983,
+      "sha256": "7a59251a9badc7afc75c4a23c9c39bb447f402a6c41954767a21181cecbfbf5e"
+    },
+    "dist/assets/swatches/chart-14.png": {
+      "bytes": 3414,
+      "sha256": "aba38c2bd45e27a1051b73b8fd553238d90c4e7cfb9fa3ac211a24018158ebfb"
+    },
+    "dist/assets/swatches/chart-15.png": {
+      "bytes": 3049,
+      "sha256": "96ef183567dadcf30e9d8b39dca91ef2ec2c1157bb5430bd849043b3c31c34a2"
+    },
+    "dist/assets/swatches/chart-16.png": {
+      "bytes": 3839,
+      "sha256": "f5dc6aabcf2f34f9284b6cc9f8caefab28cb2063df6a1035edfa23342160fd40"
+    },
+    "dist/assets/swatches/chart-17.png": {
+      "bytes": 3402,
+      "sha256": "8e9772eeaefb2bb56d3b8d36b1d28ed0c090c6e786b3c1c81fbdd2ad7d7d7ffb"
+    },
+    "dist/assets/swatches/chart-18.png": {
+      "bytes": 2666,
+      "sha256": "e09c8837cc6c2be4dead7aebf60cb6b13b1961490990f10afaa547030b1cbe64"
+    },
+    "dist/assets/swatches/chart-19.png": {
+      "bytes": 2990,
+      "sha256": "11827325546336bf8b52ca52fd94177dc1709884e45643543ffd1be822faa104"
+    },
+    "dist/assets/swatches/chart-20.png": {
+      "bytes": 3415,
+      "sha256": "df3379f4369fb87efacc9ec381850051b72706c4125b44978debe1524f3cae37"
+    },
+    "dist/assets/swatches/chart-21.png": {
+      "bytes": 3833,
+      "sha256": "d7b31e7d114475ac64816ee5eb536e246b2a123fe1dcfbd7ce2fa1d469a6cfac"
+    },
+    "dist/assets/swatches/chart-22.png": {
+      "bytes": 3905,
+      "sha256": "b30da102e2d64779c827ee957c65936e53a3a7b07a4145b665cf31b83a3e1471"
+    },
+    "dist/assets/swatches/chart-23.png": {
+      "bytes": 3485,
+      "sha256": "20cfeb4114208c60e5795d81b1ef2183e919beef32c7d92821b86ca75ccf60d1"
+    },
+    "dist/assets/swatches/chart-24.png": {
+      "bytes": 3978,
+      "sha256": "d6c9f82c8efd52679222d52f82163fa00327438ef031bb51c9a789ca9c6bacd7"
+    },
+    "dist/assets/swatches/chart-25.png": {
+      "bytes": 3314,
+      "sha256": "048696c84538db2fcc7dc80dca3098a1713fce1670d28f31cdd7c95811053021"
+    },
+    "dist/assets/swatches/chart-26.png": {
+      "bytes": 3412,
+      "sha256": "6138375c462ce711e6fd9daf6736a297959f78957126fbc872d5e44cab717ef9"
+    },
+    "dist/assets/swatches/chart-27.png": {
+      "bytes": 3417,
+      "sha256": "bce809e86f454b118434367e36ccc923570777dec3443b2e7ceb6850df08ca32"
+    },
+    "dist/assets/swatches/chart-28.png": {
+      "bytes": 3620,
+      "sha256": "8143a2102b08ab7ec0b7da165516f21f27cfdd6ad3bd16f2bc8f3dde32f7db4e"
+    },
+    "dist/assets/swatches/chart-29.png": {
+      "bytes": 3393,
+      "sha256": "b00f059a614db2bd30ceda8faa3607f95bfed94d8426b95a42f31583d7a12106"
+    },
+    "dist/assets/swatches/chart-30.png": {
+      "bytes": 3440,
+      "sha256": "60d70f57f35f8e7f9c6daf29b827845a6bd3aec299b76bbc2beca829c531f83f"
+    },
+    "dist/assets/swatches/chart-31.png": {
+      "bytes": 3435,
+      "sha256": "0b7575fae5e3ffa8514aad276400aed1e4770a3f9b2bc96534447ca358d26222"
+    },
+    "dist/assets/swatches/chart-32.png": {
+      "bytes": 3460,
+      "sha256": "987993a7784cd7a7fcc862f3ac4f535d79b40ee0526195981ac0abbb78c2e144"
+    },
+    "dist/assets/swatches/chart-33.png": {
+      "bytes": 3266,
+      "sha256": "8ca3af7362e9016dc3f1820cd6c6aa47b1a98dbd53d79327acddf54f140143da"
+    },
+    "dist/assets/swatches/chart-34.png": {
+      "bytes": 3315,
+      "sha256": "05f8f50d226e0c3e171938ab1dba8abd0a037130177d5deaef5f813b5cd60a82"
+    },
+    "dist/assets/swatches/chart-35.png": {
+      "bytes": 2869,
+      "sha256": "ed08cce81e85990c383aee10c1a2941c98cb302727023dbc4e4324b9a5fbcfaf"
+    },
+    "dist/assets/swatches/chart-36.png": {
+      "bytes": 2908,
+      "sha256": "27f6c053800af42be5bedb4ada7c85941760f2ba992d2b8937583175074230e7"
+    },
+    "dist/assets/swatches/chart-37.png": {
+      "bytes": 3375,
+      "sha256": "6be6a62b9bcda877c53fdfe25096e80a3c1a05c0e85ade26cc28f8178b9e8433"
+    },
+    "dist/assets/swatches/chart-38.png": {
+      "bytes": 3410,
+      "sha256": "1328f3a4c307c7a08c722343bdbeeefbf35f349882e39c62ee9305b9c4c31c4e"
+    },
+    "dist/assets/swatches/chart-39.png": {
+      "bytes": 3097,
+      "sha256": "caab6a952a96ef5dc52374d5dfc094f809bb4f31e7d3947fed96f51617180905"
+    },
+    "dist/assets/swatches/chart-40.png": {
+      "bytes": 3210,
+      "sha256": "923fdc8c870e89f62602948ecb76ad4d9988efd4ccdaaaa9356c650d6b52e51c"
+    },
+    "dist/assets/swatches/chart-41.png": {
+      "bytes": 3115,
+      "sha256": "860e5f620aafc5650ca1c1df0aeb92740c9235911b6710d5ff6e0a9f81e1183a"
+    },
+    "dist/assets/swatches/chart-42.png": {
+      "bytes": 3258,
+      "sha256": "66c5c70e88a05e07307e8b9800ad0d9d036c53dcdd0083f860b59dd2dd7581ac"
+    },
+    "dist/assets/swatches/chart-43.png": {
+      "bytes": 3383,
+      "sha256": "cf616f00d21b334e34c67778280b4ead7aab70d20effc478cf31a1b6e0fa9948"
+    },
+    "dist/assets/swatches/chart-44.png": {
+      "bytes": 3447,
+      "sha256": "3aa69b81988c3247fe57277b8e424a2d82c758c7e111f376d4051397d4d91031"
+    },
+    "dist/assets/swatches/chart-45.png": {
+      "bytes": 3302,
+      "sha256": "a1f9fa6d2a25dfaf9f4207918b85937673bbeca0b35069b64c9c160266f136c9"
+    },
+    "dist/assets/swatches/chart-46.png": {
+      "bytes": 3375,
+      "sha256": "0c8f4a679c8aeb4c042222e7c456d0b914098dae2662bdff29d309aa6f234f95"
+    },
+    "dist/assets/swatches/chart-47.png": {
+      "bytes": 2946,
+      "sha256": "4f1ce2cd4a3e9a57323f81bf4fda1af8b05eb040392884be12b4778fb23159a5"
+    },
+    "dist/assets/swatches/chart-48.png": {
+      "bytes": 3005,
+      "sha256": "c293b9cfe813ffaaadc2846a0c73550eeafd543b982b2280402890ef27cd96b5"
+    },
+    "dist/assets/tints.json": {
+      "bytes": 68277,
+      "sha256": "29fa33e53834078526be45982417371fb441b046e605f2df855ce8cf38a07465"
+    },
+    "dist/blank-batch.css": {
+      "bytes": 1680,
+      "sha256": "ed1cdb0440f4ab45563c2cc6cd53e8d1c05f771f2a0d4bc956dee876fef18aab"
+    },
+    "dist/blank-batch.js": {
+      "bytes": 2116,
+      "sha256": "3589148655282ce794cf7c2b7b6fc204d0aca62984cd0283201c5ed9c7d4c33b"
+    },
+    "dist/blank-engine.js": {
+      "bytes": 17239,
+      "sha256": "d54679dd2daadf0ac93cd884763c2e7ce5afbc7d1e7804c8a37727580a29bdf3"
+    },
+    "dist/catalog-model.js": {
+      "bytes": 14545,
+      "sha256": "f8e8797fdf2c227a9f2aa71c38e697d4c335c4107449fb0c788a6fbf26ab5a5c"
+    },
+    "dist/consultation-utils.js": {
+      "bytes": 6714,
+      "sha256": "78cb1c77c5126e08c5462f3009cae9e6c5fbea2cc4a2e6ba721ca92bc10c82e3"
+    },
+    "dist/import.css": {
+      "bytes": 3225,
+      "sha256": "39ff72180b7a7e74531b71443a8a05073bf5e1481ccc7103923de18b13ca84a1"
+    },
+    "dist/index.html": {
+      "bytes": 36813,
+      "sha256": "c46ebe26b769604fbd81c8d4e367f75800dc7ed881efe05972926a6bf7ffa081"
+    },
+    "dist/lens-optics.js": {
+      "bytes": 14354,
+      "sha256": "23b9908e419c3dbb2484cc7731bb5e391b5cfe422d98e9f7105953861db265d1"
+    },
+    "dist/lens-viewer.js": {
+      "bytes": 66627,
+      "sha256": "4bfcef9425898841e49d2fffe06bda0d2719ec994ecd7ffea0513af4575747ac"
+    },
+    "dist/manage-layout.css": {
+      "bytes": 2859,
+      "sha256": "76d97f549dc73194d352e4b0d6cf32d91ae0e73ecc447256e504ad52e6ada4e6"
+    },
+    "dist/manage.css": {
+      "bytes": 20261,
+      "sha256": "206d01e38153f610d0c4f841774ef2a81140ec36b8020dd9d72419e3d3f7b1ad"
+    },
+    "dist/master-manager.js": {
+      "bytes": 62815,
+      "sha256": "15584b1e37abaab03bfe519e49b270216ab20da27ac11d18d3af83c367b9e0e9"
+    },
+    "dist/photochromic.css": {
+      "bytes": 3116,
+      "sha256": "a83f073dabb31c5b2a9d24b0fc4d744b1ae38458131c42cb996f31f497a95bc2"
+    },
+    "dist/photochromic.js": {
+      "bytes": 3130,
+      "sha256": "31cfc1fed37d6be9624ac16907703b80736e37725dd2ac1c91161874247e5159"
+    },
+    "dist/planning.css": {
+      "bytes": 7595,
+      "sha256": "0f1137196113a623023f483d5e145abe4e3ad066e15356622511a879435f7972"
+    },
+    "dist/preview.css": {
+      "bytes": 10128,
+      "sha256": "3efaab190f856f869b319450f2aaf27408d18195a1881a76d19af9acef4f359c"
+    },
+    "dist/runtime-config.js": {
+      "bytes": 154,
+      "sha256": "026cab65670aed0e68cdcac373360a2482a0ea45596e4a86c6f8f0edfeb1d745"
+    },
+    "dist/sku-manager.css": {
+      "bytes": 11074,
+      "sha256": "3d3c40f40910c8558455a67085e06fda3e8e0e7d159c1d734d4f4f0d6ce4fba0"
+    },
+    "dist/sku-manager.js": {
+      "bytes": 39359,
+      "sha256": "3494efb520440e14dba10a641a55a68afb2bec91de9f14e63e7d31414aaef4e1"
+    },
+    "dist/storage-client.js": {
+      "bytes": 13380,
+      "sha256": "73ffd46797221a356f25b802e541c2cd3cd4b9e19bec7e2aed3f02a75315dc16"
+    },
+    "dist/storage.css": {
+      "bytes": 1979,
+      "sha256": "6fd95540bb9cb9488fe5730b2616da2b0dd4af1149f23b03c86fdc091fb99cef"
+    },
+    "dist/studio-layout.css": {
+      "bytes": 4507,
+      "sha256": "73d418dcfd8a405c1e66bb3af44b18ea4420ff316a6c5b7806745d7859e28af4"
+    },
+    "dist/styles.css": {
+      "bytes": 26877,
+      "sha256": "b5a75619095dbaa067a396f0658325e4d6cc865f95503bd4c46e0f464f981430"
+    },
+    "dist/tabular-import.js": {
+      "bytes": 36935,
+      "sha256": "a6213e72ba74bc647dd0ac3508ecb94013123aa7061417a73e16a29c8eb2982b"
+    },
+    "dist/templates/README-import-templates.txt": {
+      "bytes": 11681,
+      "sha256": "ff4cc9f834c66fcf47b9254d1af6a2e7712ed9c32eb5ca99745ad8fadb70d4e1"
+    },
+    "dist/templates/blank-template.csv": {
+      "bytes": 277,
+      "sha256": "cbb37c73e316fbe094828bbfa592166842c64a5cb1e77fa92d7cfa7455116c83"
+    },
+    "dist/templates/blank-template.xlsx": {
+      "bytes": 7247,
+      "sha256": "ad9108cecd08ea61144c5524b9eedd19b065e6d9a725883026eb03e7a7928630"
+    },
+    "dist/templates/frame-shape-template.csv": {
+      "bytes": 142,
+      "sha256": "b79c8493d2a16d8577930eaa30ffd2b29bba1aedb6d0b2e12bc80d29f9fae011"
+    },
+    "dist/templates/frame-shape-template.xlsx": {
+      "bytes": 7368,
+      "sha256": "5128a9e51873c5f1306bccef22750f8eb3e913ff656deab1d95ceac83663f5e6"
+    },
+    "dist/templates/sku-template.csv": {
+      "bytes": 229,
+      "sha256": "3dd15afdfc23fe3b00fee764196d582b0fb9d24cda66867e0ca9947485ee371f"
+    },
+    "dist/templates/sku-template.xlsx": {
+      "bytes": 7953,
+      "sha256": "bd30c1bb493e39cc0e0a4972db583c38b912fb2f1cc1a3384d56e60ccb824ab7"
+    },
+    "dist/templates/tinting-template.csv": {
+      "bytes": 483,
+      "sha256": "3bf0191ecceafe6e7a3e09b4118f10b6563d569953af64d404cd3d29b3fd902c"
+    },
+    "dist/templates/tinting-template.xlsx": {
+      "bytes": 7963,
+      "sha256": "4624e60159752f954c79b33f1180c0f83185b0c05a400214aab93f731a20e39b"
+    },
+    "dist/vendor/README.txt": {
+      "bytes": 644,
+      "sha256": "9507a12a8d5ed0fa6257ce503bb70d9c85106f3addc89145e411dc591ec01d92"
+    },
+    "dist/vendor/SHEETJS-LICENSE.txt": {
+      "bytes": 11355,
+      "sha256": "4d2a38ac35cda06a555c84074a819d413339cd3691b822cae50f8f322fe01f64"
+    },
+    "dist/vendor/xlsx.full.min.js": {
+      "bytes": 951904,
+      "sha256": "cc015130aa8521e7f088f88898eba949ccdcbfb38df0bd129b44b7273c3a6f41"
+    },
+    "docs/DATABASE_IMPORT.md": {
+      "bytes": 10443,
+      "sha256": "b92bd5e5b90102a1ca3fe511dbe2fd0438fd3afd5efeb502b60430fffac44beb"
+    },
+    "docs/IMPORT_CSV_EXCEL.md": {
+      "bytes": 13983,
+      "sha256": "13077edc1fa394d9d94de7dbd491e1566c6a17332682d7fe48b09786301bfda5"
+    },
+    "docs/INSTALL_MYSQL57.md": {
+      "bytes": 26637,
+      "sha256": "417142bf1700fc87dc08c796b79d11160a66c1a65bfb0fd7a9d2f123c5422843"
+    },
+    "docs/OPTICS_MODEL.md": {
+      "bytes": 9241,
+      "sha256": "2282d9613874e9fd6b9679fe483523189c00a29992269ee9aa68f67dcd48bdae"
+    },
+    "docs/PERUBAHAN_2_2_0.md": {
+      "bytes": 6488,
+      "sha256": "447a6c000896b31ed4f92f499ef04f5271be181f0049a69df4f89c910f91cf2a"
+    },
+    "docs/QA_2_1.md": {
+      "bytes": 8755,
+      "sha256": "5a9db6543c2967d437fb24ac3f045461bd253c6da5acb2a4601ace2af3771093"
+    },
+    "docs/QA_2_1_1.md": {
+      "bytes": 5105,
+      "sha256": "80e3e9e83d3a69830e2d8b9006e12e45e8514c23a972cfaf18dffbf1a1f87994"
+    },
+    "docs/QA_MYSQL57.md": {
+      "bytes": 13385,
+      "sha256": "0fe5036c3ecd132cc81ae81dcdf20a20f9bdd7cd42e966e114588676b617d43d"
+    },
+    "docs/QA_RELEASE_2_2_0.md": {
+      "bytes": 12110,
+      "sha256": "017ac4f4fc6e5c913bfebbb25d59a24e3f9011cda7ce2c1752122d27623aa255"
+    },
+    "docs/preview-annotations.jpg": {
+      "bytes": 46971,
+      "sha256": "318446d481488e7a08c688df8cf6b9382a5a0cdb47b8c8439631c797f854fb3b"
+    },
+    "docs/preview-ct.jpg": {
+      "bytes": 32758,
+      "sha256": "ad1aabb78f9fad99788db09888a6a2c3abcf7ba00bbcce192a47763130d1df05"
+    },
+    "docs/preview-frame-mounts.jpg": {
+      "bytes": 106058,
+      "sha256": "a725f79a14670a4b3b94e5434cc5ec97a7f6ff62852a85f8ced1e8486f3b6785"
+    },
+    "docs/preview-mysql-login.jpg": {
+      "bytes": 33342,
+      "sha256": "ab62617cde7c107e87399d6f64d4771fd2c1c5a8fc3ba5ffc903404ce41dcef8"
+    },
+    "docs/preview-mysql57-regression.jpg": {
+      "bytes": 109173,
+      "sha256": "bc9f1cee904f3b2883285a2c6d2641f9d538203152934f8f576f988246751f14"
+    },
+    "docs/preview-shapes.jpg": {
+      "bytes": 41903,
+      "sha256": "95a0e3ecea370ea09b6cc7dd2d9c6e446b4e8a3a7a6984aadfcd8feec92740e1"
+    },
+    "docs/preview-svg-shapes.jpg": {
+      "bytes": 41771,
+      "sha256": "db09471fad276ec52777cb3046ba59f686ddcabe846f88c685208735e9171305"
+    },
+    "docs/qa-results/2.1/mysql-integration.txt": {
+      "bytes": 2879,
+      "sha256": "8bb4e29b1a1a389ffc0c638272a659aa046deeb02d96b6004d7d6b82e766457a"
+    },
+    "docs/qa-results/2.1/mysql-restart.txt": {
+      "bytes": 504,
+      "sha256": "ede6f4dabfa9e581bfd692e05fb869cfc714579ac9fb307b7f4a6892c9054db4"
+    },
+    "docs/qa-results/2.1/npm-build.txt": {
+      "bytes": 293,
+      "sha256": "e5171b532d9b2b79d44c8a300b1a6c131b33ed3c996bcf9c3753a07a6e2dc2ad"
+    },
+    "docs/qa-results/2.1/npm-ci.txt": {
+      "bytes": 127,
+      "sha256": "20fa1a2de533211d692bded15508580c04975d6b5b59da664de4d8dffbb48f7a"
+    },
+    "docs/qa-results/2.1/npm-start.txt": {
+      "bytes": 485,
+      "sha256": "330f8805459b6814ae6097da9ec3537be2c83ba08d7049d42540afdf3ec6cb06"
+    },
+    "docs/qa-results/2.1/npm-test.txt": {
+      "bytes": 13903,
+      "sha256": "67a8d0c61e68d73e4183712e0584ae4c52a128dbf4a37e30f83518d91e0ffb3c"
+    },
+    "docs/qa-results/2.2.0/final-code-comparison.json": {
+      "bytes": 83,
+      "sha256": "b52b5fff8a962aa9578099d2aa6ba67241c026239ba3b8a5e9c00a72ecb9321c"
+    },
+    "docs/qa-results/2.2.0/log-manifest.json": {
+      "bytes": 4435,
+      "sha256": "84a3a18a019ab64a3ed1d2675014115c455f67f50ceaa8abbab28a7031cbb4d9"
+    },
+    "docs/qa-results/2.2.0/mysql-integration.txt": {
+      "bytes": 3455,
+      "sha256": "262bd9aeecca9c484bb3f14d6a1bb63b77720e86549165e4f9fb65d1cc334f7e"
+    },
+    "docs/qa-results/2.2.0/mysql-restart.txt": {
+      "bytes": 426,
+      "sha256": "522b4ddbb88eb0d491513ae07e4f285946e49ec32da504b38f67bc6b22d3c128"
+    },
+    "docs/qa-results/2.2.0/mysql-runtime.txt": {
+      "bytes": 306,
+      "sha256": "1602ccbde7f68b6ee43572286a49472de71ff4d24678c4db43a54e90e0b78467"
+    },
+    "docs/qa-results/2.2.0/npm-build.txt": {
+      "bytes": 293,
+      "sha256": "8ef28d025e3860ea57cf5d69addb9a9712f1c838cb8e116540dcd7bca91ca663"
+    },
+    "docs/qa-results/2.2.0/npm-ci.txt": {
+      "bytes": 127,
+      "sha256": "8ffee3d2edb67beb354209be521dbf87c89335d885706b77d6f140a776d0e153"
+    },
+    "docs/qa-results/2.2.0/npm-start-smoke.json": {
+      "bytes": 688,
+      "sha256": "ae394c3a910ed9f432d746015404274faa98be4f94371074f6e9b2edf52ba7b6"
+    },
+    "docs/qa-results/2.2.0/npm-start.txt": {
+      "bytes": 488,
+      "sha256": "7df3f9a8b4536283a6b091dc48251dc9142ac2a49ecb92a9933ab9c5e8022e1b"
+    },
+    "docs/qa-results/2.2.0/npm-test.txt": {
+      "bytes": 20595,
+      "sha256": "b454ebe0fe9b81dbe7afe8d5f6ebb6345cc4a3c17ec100ec11d816c1f288e1b7"
+    },
+    "docs/qa-results/2.2.0/sql-import.txt": {
+      "bytes": 1516,
+      "sha256": "686db5bd956c74f04f1e821251354aeaae13966ff515eac4bde509a6ca22a3c9"
+    },
+    "docs/qa-results/2.2.0/sql-install-qa.json": {
+      "bytes": 2298,
+      "sha256": "ea984ca491d1f52b8baf703ab209712134bb40f397bb649be69251bce963e027"
+    },
+    "docs/qa-results/mysql5724-integration.txt": {
+      "bytes": 1886,
+      "sha256": "209a9afae58edb6fd3709e55517fd2f1f6c876cfd5c69044b1d0521538be5cf4"
+    },
+    "docs/qa-results/mysql5724-restart.txt": {
+      "bytes": 490,
+      "sha256": "fe6ae8a3d0cf6cd21048b942d6c0d3fa0a0f03ccb32c7de7de6aed30a1659190"
+    },
+    "docs/qa-results/release-mysql-integration.txt": {
+      "bytes": 1888,
+      "sha256": "d1efd07d66bc931cfccf9acf8ae9223a75022ee57d38985fc83cb7eace06ddc9"
+    },
+    "docs/qa-results/release-mysql-restart.txt": {
+      "bytes": 492,
+      "sha256": "b24792e1091c28b38c84577b93946d37ee16aa653ff87c24106111621e58527f"
+    },
+    "docs/qa-results/release-npm-build.txt": {
+      "bytes": 293,
+      "sha256": "829fb1f9a439557d08fe7fc47ed257dd125444a706cc11fcaa1c6c0d421d1c22"
+    },
+    "docs/qa-results/release-npm-ci.txt": {
+      "bytes": 127,
+      "sha256": "1823c213622ac03184f5b4941f1c82bb135be0284017236c04cb4b2bb061016f"
+    },
+    "docs/qa-results/release-npm-start.txt": {
+      "bytes": 485,
+      "sha256": "8914d3363e11a46007c3419aefbb97bdfce9869b78a2e33be1f8991e0a1b8266"
+    },
+    "docs/qa-results/release-npm-test.txt": {
+      "bytes": 7943,
+      "sha256": "c10d677030860848bdf84342a05490e505142fb287ae9e46d2abbfea1d6fe5ab"
+    },
+    "package-lock.json": {
+      "bytes": 5262,
+      "sha256": "f376143c98011f0b52b50eaba2532f7d4ffefc1946c21f2c569503387716707c"
+    },
+    "package.json": {
+      "bytes": 1193,
+      "sha256": "4a5ee948049a9c70e086e6c89ae7064e0b8c354221e61180ebe7edd8a4b739ad"
+    },
+    "server/app.mjs": {
+      "bytes": 10619,
+      "sha256": "e33992b8416f9af856a8823ec5395253030dd987d61b538fab6081f0ca53f511"
+    },
+    "server/auth.mjs": {
+      "bytes": 3301,
+      "sha256": "c4d862bf7d0860af2069e2b549deabe9c4b60d6ea24b835ab1de352306b4b94d"
+    },
+    "server/check.mjs": {
+      "bytes": 1586,
+      "sha256": "74a6b668f919c015a14bc640c9129b7232828a229e83b5f14eaa55544ee147f6"
+    },
+    "server/cli.mjs": {
+      "bytes": 3349,
+      "sha256": "62009f8802e2cd5c4440fe1555a0e256a1001fd7178df93f91dbb4a654161ade"
+    },
+    "server/config.mjs": {
+      "bytes": 3101,
+      "sha256": "7254d93192682b29a6b7fb7d3a350cc8a892a2c040c558d2d87fee7abf68a108"
+    },
+    "server/db.mjs": {
+      "bytes": 15243,
+      "sha256": "e47996084a69d0cb8bd3e3c09ad83ccb3d26e6483896f42288beb9fe75ced487"
+    },
+    "server/errors.mjs": {
+      "bytes": 270,
+      "sha256": "9e319e93423171e304e5f9a31b7153df23b4ef5cb711f0adc4e9f61e28071c3d"
+    },
+    "server/start.mjs": {
+      "bytes": 1781,
+      "sha256": "a9e32e77d4d28757c9b32b22d1b5e2d257c10bc57988ddaed3e20c2d1bfbb3af"
+    },
+    "server/test-core.mjs": {
+      "bytes": 12062,
+      "sha256": "bc0a510f0e7e024d30b19dae977bc0a17fcfbda3ffacf990cede9fcf2c064e21"
+    },
+    "server/validation.mjs": {
+      "bytes": 9423,
+      "sha256": "5389359a3584cff442db46b54e33493cbae4a7938e051c20dbd88ab15dd59288"
+    },
+    "tools/add-frame-shapes.mjs": {
+      "bytes": 9409,
+      "sha256": "665ecd88be3b10e4042e4eb963b726a9b09c54f76325b989f43fbd2f062c1dda"
+    },
+    "tools/build-import-templates.mjs": {
+      "bytes": 25952,
+      "sha256": "ed7a361b7571a26a7e97dd7e9cc3124c36cefc1480d03793bb3b570b6725c41b"
+    },
+    "tools/build-install-sql.mjs": {
+      "bytes": 8774,
+      "sha256": "6a58da2ab5346bb1fbe01f05073f7ecf7f56aed25a37a20c22402ae6f0723ebf"
+    },
+    "tools/extract-tints.py": {
+      "bytes": 14957,
+      "sha256": "67d49660280ea86c0daea3fcf4ac5c5fcd71c56970314592b083aa7d46001b44"
+    },
+    "tools/fixtures/blank-reference.xlsx": {
+      "bytes": 149815,
+      "sha256": "2fdd62d4b51b8168f8ff7c664797fa2cf9b1c5c8f788b6ddee019f131ab6d4f0"
+    },
+    "tools/prepare-materials-shapes.py": {
+      "bytes": 14843,
+      "sha256": "05286675508d51dc66a9acac83317edd94627e698fa3df4aeb27ef83747af993"
+    },
+    "tools/shape-references/cateye.svg": {
+      "bytes": 1860,
+      "sha256": "0bc6e172ca0005cf6bfc5cc4a8327f144ddd40271ee9ae68a67fefd846bde1a9"
+    },
+    "tools/shape-references/rectangle.svg": {
+      "bytes": 1612,
+      "sha256": "fbf2573581897e43f0269d809e2a84284ffe75e03e21076923f084e82e31b656"
+    },
+    "tools/shape-references/rounded.svg": {
+      "bytes": 1906,
+      "sha256": "3d9e554a5981c75b80f441bf60d4251636dba04afddd39c6a635a3c45b48cc46"
+    },
+    "tools/shape-references/square.svg": {
+      "bytes": 1537,
+      "sha256": "925f1d6b8f5c46886f99da6ab953121aae1f84a98bf2b39e86da32c9ed52c326"
+    },
+    "tools/test-blank-batch.mjs": {
+      "bytes": 3589,
+      "sha256": "7d1e0438afcfadd7f78021d9a54b3709b326bf77e79647ec2b27911cb2feba13"
+    },
+    "tools/test-blank-engine.mjs": {
+      "bytes": 14638,
+      "sha256": "f742a07774dd689f00fdc19df78d618a1deb89c25348bfccb0129e849a9afb08"
+    },
+    "tools/test-catalog-model.mjs": {
+      "bytes": 10100,
+      "sha256": "4447fe76d376bed9d831e284bcaa4ed8fb17b5552733ee42664e91c191773247"
+    },
+    "tools/test-consultation-utils.mjs": {
+      "bytes": 15930,
+      "sha256": "74e77004b61192f9188e59d01725bc2aaa6782fc4e1522b951ee2066a45fb8a5"
+    },
+    "tools/test-import-regressions.mjs": {
+      "bytes": 8553,
+      "sha256": "6672aa8a282a315654167bd208830e12ccab68ce42f9555fc27af5566f9e5db7"
+    },
+    "tools/test-master-manager.mjs": {
+      "bytes": 13833,
+      "sha256": "792347467ac3d6e470fb27e8f807081a187bd1ed1c72df3dd62bde9c0d1429c7"
+    },
+    "tools/test-optics.mjs": {
+      "bytes": 11340,
+      "sha256": "711e9e36be0b8dfa9369d8c085e55f54a659542498b5e0a51c79fb153c0f7636"
+    },
+    "tools/test-photochromic.mjs": {
+      "bytes": 5304,
+      "sha256": "b4b0fbc88fa9e6dca10a488d8ced73a57b57225059c0f56ef3ae748f7d4ba87d"
+    },
+    "tools/test-server.mjs": {
+      "bytes": 44513,
+      "sha256": "518d79e27174e9d6cde6c8e728bce42f8fbd53f80f3156281b47732858fdd71c"
+    },
+    "tools/test-sku-manager.mjs": {
+      "bytes": 19522,
+      "sha256": "c9d843f6a87cdeb32877a103eaf3cd023618ea359b4b29afc9dd87a97b58bbaf"
+    },
+    "tools/test-storage-client.mjs": {
+      "bytes": 20887,
+      "sha256": "d7bb5125f8b1228c2fdaae202a1db8ffe84cd5a32f879e08389049e74b8e486d"
+    },
+    "tools/test-tabular-import.mjs": {
+      "bytes": 28275,
+      "sha256": "03e7ebc8b5a335d9ef0bf943f33645b03b768580a10ca0300279dc1a4d6d4358"
+    },
+    "tools/test-viewer.mjs": {
+      "bytes": 70078,
+      "sha256": "bfec6c609ffdac037848867a9a529375b45d922cfd6e2f5de2fa10480e31bb34"
+    }
+  },
+  "packagingSupplementFiles": {
+    "QA_TERBARU.md": {
+      "bytes": 4432,
+      "sha256": "1eb7223db589d5d5c902a1c7bdb3e12ffd990b9030b19511dd16a9ca40ea1b2f"
+    },
+    "docs/qa-results/recheck-2026-11-04/npm-ci.txt": {
+      "bytes": 127,
+      "sha256": "79d6e07ddd0f9f1416c5155ed96cd8e568bd0fed2494b8bf3287aa9b772a940f"
+    },
+    "docs/qa-results/recheck-2026-11-04/npm-build.txt": {
+      "bytes": 293,
+      "sha256": "8ef28d025e3860ea57cf5d69addb9a9712f1c838cb8e116540dcd7bca91ca663"
+    },
+    "docs/qa-results/recheck-2026-11-04/npm-test.txt": {
+      "bytes": 20594,
+      "sha256": "208f63f81a038af8418ce523844a8e08c4da5bfa5522a2f679a935476bf64abe"
+    },
+    "docs/qa-results/recheck-2026-11-04/mysql-integration.txt": {
+      "bytes": 3451,
+      "sha256": "376220b9a902438f062e934fb9259bced44b49c94d24496db342f3ff32134004"
+    },
+    "docs/qa-results/recheck-2026-11-04/mysql-runtime.txt": {
+      "bytes": 303,
+      "sha256": "bded080594916825bee8f961865c81a99677ef4a9173a13f5bbbc008920ddab4"
+    },
+    "docs/qa-results/recheck-2026-11-04/mysql-restart.txt": {
+      "bytes": 422,
+      "sha256": "d58c80a224a485bf6ff8002af1bf5b636d1943456aa041cb4dbf3557eb9619c9"
+    },
+    "docs/qa-results/recheck-2026-11-04/npm-start-process.txt": {
+      "bytes": 488,
+      "sha256": "59ad5d5f2b6d4df795026c6e3978296b81eef589f1195e7163aee214e9159da3"
+    },
+    "docs/qa-results/recheck-2026-11-04/npm-start-smoke.json": {
+      "bytes": 688,
+      "sha256": "ae394c3a910ed9f432d746015404274faa98be4f94371074f6e9b2edf52ba7b6"
+    },
+    "docs/qa-results/recheck-2026-11-04/sql-import.txt": {
+      "bytes": 1051,
+      "sha256": "141f6006361244d5074dd892c427ede470f67b9d22ebcb46d45c8d3705fed4c3"
+    },
+    "docs/qa-results/recheck-2026-11-04/clean-install-summary.json": {
+      "bytes": 462,
+      "sha256": "731c051d19863cc7d787c6d395908b647e3785eff630ef9514ef0f8749f8c8a1"
+    },
+    "docs/qa-results/recheck-2026-11-04/master-preservation-audit.json": {
+      "bytes": 13739,
+      "sha256": "ec9047df120020ebbf14abec97f6ffb368c0a84ec501572e7bffdf76c2e4fb95"
+    },
+    "docs/qa-results/recheck-2026-11-04/sql-install-qa.json": {
+      "bytes": 2299,
+      "sha256": "24f1f383554f4f3fd18a0714fa58ddfa596184f20b31ae53992c3e36a9f39419"
+    }
+  }
 }

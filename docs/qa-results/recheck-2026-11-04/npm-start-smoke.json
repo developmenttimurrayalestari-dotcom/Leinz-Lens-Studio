@@ -1,0 +1,28 @@
+{
+  "ok": true,
+  "command": "npm start",
+  "applicationVersion": "2.2.0",
+  "databaseVersion": "5.7.24",
+  "health": {
+    "status": "ok",
+    "version": "2.2.0",
+    "database": "mysql",
+    "databaseVersion": "5.7.24",
+    "ready": true
+  },
+  "htmlStatus": 200,
+  "runtimeMode": "mysql",
+  "authenticatedBootstrapMasterCounts": {
+    "products": 19,
+    "blanks": 186,
+    "powerRules": 2026,
+    "frameShapes": 13,
+    "tinting": 66,
+    "skus": 0
+  },
+  "stateRoundTrip": true,
+  "photochromicUVStateAfterRestart": true,
+  "databaseAndApplicationRestart": true,
+  "masterCatalogsPreservedAfterRestart": true,
+  "source": "ZIP extracted to an empty folder, npm ci then build/test"
+}
