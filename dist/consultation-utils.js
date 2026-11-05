@@ -7,7 +7,7 @@
   const photochromic = global.LeinzPhotochromic || (typeof require === 'function' ? require('./photochromic.js') : null);
   function historyTintLabels(item) {
     const choices = Array.isArray(item?.data?.choices) ? item.data.choices : ['a','b'].map(key=>({tint:{code:item?.state?.[key]?.tintCode},photochromic:{enabled:item?.state?.[key]?.photochromic===true}}));
-    return choices.slice(0,2).map(choice => choice?.photochromic?.enabled === true ? 'Photochromic' : typeof choice?.tint?.code === 'string' ? choice.tint.code : 'Bening').join(' / ');
+    return choices.slice(0,2).map(choice => choice?.photochromic?.enabled === true ? 'TransActiv' : typeof choice?.tint?.code === 'string' ? choice.tint.code : 'Bening').join(' / ');
   }
   function consultationToState(payload, catalogs) {
     if (!object(payload) || !['trl-lens-consultation/1.3','trl-lens-consultation/1.4'].includes(payload.schema) || !Array.isArray(payload.choices) || payload.choices.length !== 2) throw Error('Gunakan JSON konsultasi Leinz dengan schema trl-lens-consultation/1.3 atau 1.4.');

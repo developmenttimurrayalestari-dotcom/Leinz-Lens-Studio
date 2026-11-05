@@ -1,10 +1,9 @@
 {
-  "schema": "leinz-release-package/1.1",
+  "schema": "leinz-release-package/1.2",
   "applicationVersion": "2.2.0",
-  "qaRecheckedAt": "2026-11-04T12:33:06.459654+07:00",
-  "timezone": "Asia/Jakarta",
-  "sourceCommit": "d4231ae9df7ebb994da715fabffb44060c05c98e",
-  "sourceUnchanged": true,
+  "displayRevision": "TransActiv-2026-11-05",
+  "createdAt": "2026-11-05T08:22:00.211312+07:00",
+  "sourceCommit": "6b7e55f9224e796fe93da196731698a608bfe170",
   "targetDatabase": "MySQL 5.7.24",
   "masterCounts": {
     "suppliers": 2,
@@ -15,17 +14,26 @@
     "tinting": 66,
     "skus": 0
   },
-  "dataScope": "Complete packaged reference catalogs; not an export of an operational database or browser-local edits.",
-  "report": "QA_TERBARU.md",
-  "validation": {
-    "mainNodeTestsPassed": 157,
-    "separateSkuNodeTestsPassed": 24,
-    "mysqlIntegrationGroupsPassed": 29,
-    "sqlChecksPassed": 8,
-    "masterAuditChecksPassed": 39,
-    "cleanInstallBuildTest": true,
-    "databaseAndApplicationRestart": true,
-    "codeFilesIdenticalToTestedExtraction": 131
+  "masterDataUnchanged": true,
+  "currentValidation": {
+    "buildPassed": true,
+    "targetedTestsPassed": 41,
+    "browserChecksPassed": true,
+    "report": "docs/UPDATE_TRANS_ACTIV_2026_11_05.md"
+  },
+  "previousFullQa": {
+    "sourceCommit": "d4231ae9df7ebb994da715fabffb44060c05c98e",
+    "report": "QA_RECHECK_2026_11_04.md",
+    "validation": {
+      "mainNodeTestsPassed": 157,
+      "separateSkuNodeTestsPassed": 24,
+      "mysqlIntegrationGroupsPassed": 29,
+      "sqlChecksPassed": 8,
+      "masterAuditChecksPassed": 39,
+      "cleanInstallBuildTest": true,
+      "databaseAndApplicationRestart": true,
+      "codeFilesIdenticalToTestedExtraction": 131
+    }
   },
   "sourceFiles": {
     ".env.example": {
@@ -41,8 +49,8 @@
       "sha256": "b1dcf5d1e0fcc8e99161f0f606275c8ffccf536141ec54d9d7df7903218c047b"
     },
     "README.md": {
-      "bytes": 31805,
-      "sha256": "661fc625e1266211326865ce851c42a73eafd1e6f4c53e5caade6b330855ffcf"
+      "bytes": 32041,
+      "sha256": "878fc5a87b8493e03768b562118425757d33eb38814cd57b20e86c64b5947751"
     },
     "database/001_initial.sql": {
       "bytes": 2524,
@@ -69,8 +77,8 @@
       "sha256": "1089ffdebeb40efe8848c4b53354f8be181d8240227dd6c7258ac6a9d7297b74"
     },
     "dist/app.js": {
-      "bytes": 86148,
-      "sha256": "f49b54eb6578dddea7767e024602903f2d8d4adfbb00f45dcfbbdd03b53d4b9a"
+      "bytes": 86120,
+      "sha256": "5efcd75359d9d6a738886a80bf67dd671b29def8478cd4acace415a8c8735d85"
     },
     "dist/assets/materials.json": {
       "bytes": 474515,
@@ -301,16 +309,16 @@
       "sha256": "f8e8797fdf2c227a9f2aa71c38e697d4c335c4107449fb0c788a6fbf26ab5a5c"
     },
     "dist/consultation-utils.js": {
-      "bytes": 6714,
-      "sha256": "78cb1c77c5126e08c5462f3009cae9e6c5fbea2cc4a2e6ba721ca92bc10c82e3"
+      "bytes": 6712,
+      "sha256": "dc58fee631dc5668851616e0e163f35aababdc73bf7715aefa3a1359123dee1b"
     },
     "dist/import.css": {
       "bytes": 3225,
       "sha256": "39ff72180b7a7e74531b71443a8a05073bf5e1481ccc7103923de18b13ca84a1"
     },
     "dist/index.html": {
-      "bytes": 36813,
-      "sha256": "c46ebe26b769604fbd81c8d4e367f75800dc7ed881efe05972926a6bf7ffa081"
+      "bytes": 37261,
+      "sha256": "eb6c0160c783c2b95040d8a3b0a705d94dbbd4aefc64a7cccf107ef6d84638c4"
     },
     "dist/lens-optics.js": {
       "bytes": 14354,
@@ -337,8 +345,8 @@
       "sha256": "a83f073dabb31c5b2a9d24b0fc4d744b1ae38458131c42cb996f31f497a95bc2"
     },
     "dist/photochromic.js": {
-      "bytes": 3130,
-      "sha256": "31cfc1fed37d6be9624ac16907703b80736e37725dd2ac1c91161874247e5159"
+      "bytes": 3114,
+      "sha256": "12d177ff31609e5a9e6958f26db0f39d344140d3d8f25c93b2c7ae7337bb6bab"
     },
     "dist/planning.css": {
       "bytes": 7595,
@@ -369,8 +377,8 @@
       "sha256": "6fd95540bb9cb9488fe5730b2616da2b0dd4af1149f23b03c86fdc091fb99cef"
     },
     "dist/studio-layout.css": {
-      "bytes": 4507,
-      "sha256": "73d418dcfd8a405c1e66bb3af44b18ea4420ff316a6c5b7806745d7859e28af4"
+      "bytes": 4885,
+      "sha256": "2fc54e22b29af0c3a8983bac911c836c605bbc6f8bdab0c65365d99c2ef323d3"
     },
     "dist/styles.css": {
       "bytes": 26877,
@@ -463,6 +471,10 @@
     "docs/QA_RELEASE_2_2_0.md": {
       "bytes": 12110,
       "sha256": "017ac4f4fc6e5c913bfebbb25d59a24e3f9011cda7ce2c1752122d27623aa255"
+    },
+    "docs/UPDATE_TRANS_ACTIV_2026_11_05.md": {
+      "bytes": 2127,
+      "sha256": "72a08595bd58db92123b4d96196998875e6dabeb31405f7b2aa0a0e3d3b0c237"
     },
     "docs/preview-annotations.jpg": {
       "bytes": 46971,
@@ -641,8 +653,8 @@
       "sha256": "bc0a510f0e7e024d30b19dae977bc0a17fcfbda3ffacf990cede9fcf2c064e21"
     },
     "server/validation.mjs": {
-      "bytes": 9423,
-      "sha256": "5389359a3584cff442db46b54e33493cbae4a7938e051c20dbd88ab15dd59288"
+      "bytes": 9411,
+      "sha256": "2be3a24f694f6b1ba0845d5c458ca847d53f3095b296349cd1bb8cfb86f0ae6a"
     },
     "tools/add-frame-shapes.mjs": {
       "bytes": 9409,
@@ -697,8 +709,8 @@
       "sha256": "4447fe76d376bed9d831e284bcaa4ed8fb17b5552733ee42664e91c191773247"
     },
     "tools/test-consultation-utils.mjs": {
-      "bytes": 15930,
-      "sha256": "74e77004b61192f9188e59d01725bc2aaa6782fc4e1522b951ee2066a45fb8a5"
+      "bytes": 15924,
+      "sha256": "b2eeff0f968828f9e45b68f7a539571dd4e251a6e653a8424e0ba355570f7266"
     },
     "tools/test-import-regressions.mjs": {
       "bytes": 8553,
@@ -713,12 +725,12 @@
       "sha256": "711e9e36be0b8dfa9369d8c085e55f54a659542498b5e0a51c79fb153c0f7636"
     },
     "tools/test-photochromic.mjs": {
-      "bytes": 5304,
-      "sha256": "b4b0fbc88fa9e6dca10a488d8ced73a57b57225059c0f56ef3ae748f7d4ba87d"
+      "bytes": 5302,
+      "sha256": "3bc007e46db1822a4dc8e484a8cc02a4278534e0c52a5492330a33aed5bcf8ff"
     },
     "tools/test-server.mjs": {
-      "bytes": 44513,
-      "sha256": "518d79e27174e9d6cde6c8e728bce42f8fbd53f80f3156281b47732858fdd71c"
+      "bytes": 44511,
+      "sha256": "1af21efca0ad06d90c873f0205eb6037122fb9fb5b0b9188332bdaa26e7a0130"
     },
     "tools/test-sku-manager.mjs": {
       "bytes": 19522,
@@ -738,7 +750,7 @@
     }
   },
   "packagingSupplementFiles": {
-    "QA_TERBARU.md": {
+    "QA_RECHECK_2026_11_04.md": {
       "bytes": 4432,
       "sha256": "1eb7223db589d5d5c902a1c7bdb3e12ffd990b9030b19511dd16a9ca40ea1b2f"
     },
@@ -789,6 +801,30 @@
     "docs/qa-results/recheck-2026-11-04/sql-install-qa.json": {
       "bytes": 2299,
       "sha256": "24f1f383554f4f3fd18a0714fa58ddfa596184f20b31ae53992c3e36a9f39419"
+    },
+    "QA_TERBARU.md": {
+      "bytes": 1012,
+      "sha256": "e767600be14b6114ce12ac33a7c1635d2ea7f67b962ec7347928f73587fdf896"
+    },
+    "docs/qa-results/transactiv-2026-11-05/build.txt": {
+      "bytes": 293,
+      "sha256": "8ef28d025e3860ea57cf5d69addb9a9712f1c838cb8e116540dcd7bca91ca663"
+    },
+    "docs/qa-results/transactiv-2026-11-05/targeted-tests.txt": {
+      "bytes": 4422,
+      "sha256": "7eef8802a1126ec2ffefdd8eb2912a111836e6874c7e0057e3c9e53adc9f14cb"
+    },
+    "docs/qa-results/transactiv-2026-11-05/checks.json": {
+      "bytes": 161,
+      "sha256": "95d42dac74fa4848bb2a479118f6b76228c46f82a051f97d26bdb87a42e041f5"
+    },
+    "docs/qa-results/transactiv-2026-11-05/master-check.json": {
+      "bytes": 460,
+      "sha256": "47215609c43e65518caa2f343da4ec4a243224db6a24ef2a20938fd2ebb48a78"
+    },
+    "docs/qa-results/transactiv-2026-11-05/browser-check.json": {
+      "bytes": 442,
+      "sha256": "bffa311dd579e78947c8562a41f408a0f4345e3be8786ef062b35cd30f41de74"
     }
   }
 }

@@ -1,0 +1,17 @@
+{
+  "noteTextMatchesRequest": true,
+  "noteImmediatelyAfterPreview": true,
+  "TransActivABLabels": true,
+  "TransActivCaption": true,
+  "uvExposureTested": 100,
+  "tintLocked": true,
+  "matchTintDisabled": true,
+  "desktopNoteWidth": 884,
+  "desktopNoteScrollWidth": 884,
+  "mobileViewport": 375,
+  "mobilePageWidth": 375,
+  "mobileNoteWidth": 321,
+  "mobileNoteScrollWidth": 321,
+  "mobileNoteHeight": 167,
+  "mobileNoteScrollHeight": 167
+}

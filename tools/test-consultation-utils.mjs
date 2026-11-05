@@ -268,7 +268,7 @@ test('consultation import rejects tint plus photochromic and incomplete or incon
 });
 
 test('history labels distinguish photochromic from clear and tint, including fallback state-only history', () => {
-  assert.equal(historyTintLabels({ data: photochromicConsultation() }), 'Photochromic / 09G');
-  assert.equal(historyTintLabels({ state: { a: { photochromic: true, tintCode: null }, b: { photochromic: false, tintCode: '09S' } } }), 'Photochromic / 09S');
-  assert.equal(historyTintLabels({ data: photochromicConsultation(0) }), 'Photochromic / 09G');
+  assert.equal(historyTintLabels({ data: photochromicConsultation() }), 'TransActiv / 09G');
+  assert.equal(historyTintLabels({ state: { a: { photochromic: true, tintCode: null }, b: { photochromic: false, tintCode: '09S' } } }), 'TransActiv / 09S');
+  assert.equal(historyTintLabels({ data: photochromicConsultation(0) }), 'TransActiv / 09G');
 });

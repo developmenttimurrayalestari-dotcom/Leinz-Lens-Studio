@@ -6,6 +6,10 @@ serta preview statis yang menyimpan data di browser. Keduanya memakai antarmuka
 dan model perhitungan yang sama. Aplikasi belum mengirim order atau terhubung
 langsung ke perhitungan produksi Lensware.
 
+Pembaruan tampilan 5 November 2026 menambahkan catatan hasil di bawah preview
+A/B dan mengganti nama fitur menjadi **TransActiv**. Rincian dan pemeriksaan
+terkait tersedia pada [catatan pembaruan](docs/UPDATE_TRANS_ACTIV_2026_11_05.md).
+
 ## Instalasi versi MySQL
 
 Mulai dari [panduan instalasi MySQL 5.7](docs/INSTALL_MYSQL57.md). Paket menggunakan
@@ -34,7 +38,7 @@ Skema dan seluruh master referensi juga tersedia sebagai SQL siap impor; lihat
 
 ## Pembaruan versi 2.2.0
 
-- **Photochromic per pasangan A/B**, tint terkunci saat aktif, dan paparan UV
+- **TransActiv per pasangan A/B**, tint terkunci saat aktif, dan paparan UV
   bersama 0–100% untuk perubahan bening–gelap. Warna layar merupakan simulasi
   visual abu-abu, bukan VLT, UV Index atau waktu aktivasi produk.
 - **Impor CSV dan Excel .xlsx** untuk blank/raw material, frame shape, tinting,

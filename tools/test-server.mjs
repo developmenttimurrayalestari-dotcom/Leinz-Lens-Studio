@@ -201,7 +201,7 @@ try {
         const conflicting = clone(next); conflicting.a.tintCode = '09S';
         const rejected = await putDoc('state', conflicting, write.json.revision, admin);
         assert.equal(rejected.status, 422, rejected.text);
-        assert.match(rejected.json.error.message, /photochromic.*tinting/i);
+        assert.match(rejected.json.error.message, /TransActiv.*tinting/i);
         assert.deepEqual(await getDoc('state', admin), write.json, 'A rejected tint must not advance the state revision or change its value.');
       } finally {
         const current = await getDoc('state', admin);

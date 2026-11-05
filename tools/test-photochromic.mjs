@@ -69,7 +69,7 @@ test('snapshot validation enforces tint exclusion and one explicit shared exposu
   assert.throws(() => validateSnapshot(value, { uvExposure: 30 }), /sama/);
   assert.deepEqual(validateSnapshot(getAppearance(false, 60), { uvExposure: 60, tint: { code: '09S' } }), getAppearance(false, 60));
   assert.deepEqual(validateSnapshot(undefined), getAppearance(false, 0));
-  assert.throws(() => validateSnapshot(undefined, { required: true }), /photochromic/);
+  assert.throws(() => validateSnapshot(undefined, { required: true }), /TransActiv/);
 });
 
 test('snapshots cannot claim a different darkness or calibrated response than the illustrative UV model', () => {

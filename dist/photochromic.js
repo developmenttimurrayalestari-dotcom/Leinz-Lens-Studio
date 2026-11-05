@@ -12,7 +12,7 @@
     return value;
   }
   function getAppearance(enabled = false, uvExposure = 0) {
-    if (typeof enabled !== 'boolean') throw Error('Status photochromic harus berupa boolean.');
+    if (typeof enabled !== 'boolean') throw Error('Status TransActiv harus berupa boolean.');
     validateExposure(uvExposure);
     const visualDarknessPercent = enabled ? uvExposure : 0;
     // Neutral gray endpoints chosen for the existing studio renderer. This is
@@ -25,20 +25,20 @@
   function validateSnapshot(value, { uvExposure = 0, tint = null, required = false } = {}) {
     validateExposure(uvExposure);
     if (value === undefined && !required) return getAppearance(false, uvExposure);
-    if (!object(value) || typeof value.enabled !== 'boolean') throw Error('Pengaturan photochromic harus memuat status enabled boolean.');
+    if (!object(value) || typeof value.enabled !== 'boolean') throw Error('Pengaturan TransActiv harus memuat status enabled boolean.');
     validateExposure(value.uvExposure);
-    if (value.uvExposure !== uvExposure) throw Error('Paparan UV photochromic harus sama dengan paparan UV bersama pada preview.');
-    if (value.simulationOnly !== true) throw Error('Preview photochromic harus ditandai sebagai simulasi visual.');
-    if (value.enabled && tint !== null && tint !== undefined) throw Error('Photochromic aktif tidak dapat digabungkan dengan tinting.');
+    if (value.uvExposure !== uvExposure) throw Error('Paparan UV TransActiv harus sama dengan paparan UV bersama pada preview.');
+    if (value.simulationOnly !== true) throw Error('Preview TransActiv harus ditandai sebagai simulasi visual.');
+    if (value.enabled && tint !== null && tint !== undefined) throw Error('TransActiv aktif tidak dapat digabungkan dengan tinting.');
     const expected = getAppearance(value.enabled, uvExposure);
     if (value.visualDarknessPercent !== undefined && value.visualDarknessPercent !== expected.visualDarknessPercent) {
-      throw Error('Tingkat gelap visual photochromic tidak sesuai dengan paparan UV simulasi.');
+      throw Error('Tingkat gelap visual TransActiv tidak sesuai dengan paparan UV simulasi.');
     }
     if (value.colorHex !== undefined && value.colorHex !== null && (typeof value.colorHex !== 'string' || !/^#[0-9A-F]{6}$/i.test(value.colorHex))) {
-      throw Error('Warna preview photochromic tidak valid.');
+      throw Error('Warna preview TransActiv tidak valid.');
     }
     if (value.colorHex !== undefined && (typeof value.colorHex === 'string' ? value.colorHex.toUpperCase() : value.colorHex) !== expected.colorHex) {
-      throw Error('Warna preview photochromic tidak sesuai dengan paparan UV simulasi.');
+      throw Error('Warna preview TransActiv tidak sesuai dengan paparan UV simulasi.');
     }
     return expected;
   }

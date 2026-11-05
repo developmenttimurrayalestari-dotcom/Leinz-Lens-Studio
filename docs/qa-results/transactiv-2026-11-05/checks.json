@@ -1,0 +1,14 @@
+[
+  {
+    "step": "build",
+    "exitCode": 0
+  },
+  {
+    "step": "targeted-tests",
+    "exitCode": 0
+  },
+  {
+    "step": "diff-check",
+    "exitCode": 0
+  }
+]

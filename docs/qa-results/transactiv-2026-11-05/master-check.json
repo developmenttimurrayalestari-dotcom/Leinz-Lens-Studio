@@ -1,0 +1,20 @@
+{
+  "identicalToBaseline": true,
+  "counts": {
+    "suppliers": 2,
+    "products": 19,
+    "blanks": 186,
+    "powerRules": 2026,
+    "frameShapes": 13,
+    "tinting": 66,
+    "skus": 0
+  },
+  "files": {
+    "dist/assets/materials.json": true,
+    "dist/assets/shapes.json": true,
+    "dist/assets/tints.json": true,
+    "database/leinz-schema.sql": true,
+    "database/leinz-master-data.sql": true,
+    "database/leinz-schema-and-master-data.sql": true
+  }
+}
