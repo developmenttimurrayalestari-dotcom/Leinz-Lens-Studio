@@ -103,8 +103,8 @@ try {
       const skus = await store.getDocument(null, 'skus');
       assert.equal(skus.value.skus.length, 3); assert.equal(skus.value.skus[0].code, "LEINZ'57");
       const catalogs = await store.getCatalogs();
-      assert.equal(catalogs.value.materials.products.length, 20); assert.equal(catalogs.value.materials.blanks.length, 187);
-      assert.equal(catalogs.value.materials.rules.length, 2027); assert.equal(catalogs.value.shapes.items.length, 14); assert.equal(catalogs.value.tints.items.length, 67);
+      assert.equal(catalogs.value.materials.products.length, 92); assert.equal(catalogs.value.materials.blanks.length, 797);
+      assert.equal(catalogs.value.materials.rules.length, 6830); assert.equal(catalogs.value.shapes.items.length, 14); assert.equal(catalogs.value.tints.items.length, 67);
       assert.equal(catalogs.value.materials.products.find(p=>p.id==='QA:MANAGED').opticalProfile.minCenterMm,1.2);
       assert.equal(catalogs.value.tints.items.find(t=>t.code==='QA-TINT').active,false);
       assert.equal(state.value.optics.profile.minCenterMm,1.2);
@@ -117,8 +117,8 @@ try {
       for (const command of ['migrate', 'migrate', 'seed', 'seed']) {
         const result = await cli(command); assert.equal(result.code, 0, result.stderr);
       }
-      const [tables] = await pool.query('SHOW TABLES'); assert.equal(tables.length, 7);
-      const [[migration]] = await pool.query('SELECT COUNT(*) AS n FROM leinz_schema_migrations'); assert.equal(Number(migration.n), 2);
+      const [tables] = await pool.query('SHOW TABLES'); assert.equal(tables.length, TABLES.length);
+      const [[migration]] = await pool.query('SELECT COUNT(*) AS n FROM leinz_schema_migrations'); assert.equal(Number(migration.n), 4);
       const [columns] = await pool.query("SELECT DATA_TYPE AS type FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND COLUMN_NAME = 'document_json'");
       assert.equal(columns.length, 3); assert(columns.every(c => c.type === 'json'));
     });
@@ -145,15 +145,15 @@ try {
     await test('Authenticated bootstrap loads all catalogs from MySQL', async () => {
       const res = await request('/api/bootstrap', admin); assert.equal(res.status, 200, res.text); bootstrap = res.json;
       assert.equal(bootstrap.catalogs.tints.items.length, 66); assert.equal(bootstrap.catalogs.shapes.items.length, 13);
-      assert.equal(bootstrap.catalogs.materials.blanks.length, 186); assert.equal(bootstrap.catalogs.materials.products.length, 19);
-      assert.equal(bootstrap.catalogs.materials.rules.length, 2026);
+      assert.equal(bootstrap.catalogs.materials.blanks.length, 796); assert.equal(bootstrap.catalogs.materials.products.length, 91);
+      assert.equal(bootstrap.catalogs.materials.rules.length, 6829);
       assert(bootstrap.catalogs.materials.products.some(p=>p.index==='1.59'&&!p.activeForSimulator));
       assert(Number.isInteger(bootstrap.catalogRevision));
       for(const key of ['materials','shapes','tints']) {
         const asset=JSON.parse(readFileSync(resolve(PROJECT_ROOT,`dist/assets/${key}.json`),'utf8'));
         assert.equal(catalogDigest(bootstrap.catalogs[key]),catalogDigest(asset),key+' persisted content must match the complete asset catalog');
       }
-      console.log(JSON.stringify({referenceCatalogs:{products:19,blanks:186,powerRules:2026,frameShapes:13,tinting:66,catalogOnlyIndex159Preserved:true},canonicalSha256:Object.fromEntries(['materials','shapes','tints'].map(key=>[key,catalogDigest(bootstrap.catalogs[key])]))}));
+      console.log(JSON.stringify({referenceCatalogs:{products:91,blanks:796,powerRules:6829,frameShapes:13,tinting:66,catalogOnlyIndex159Preserved:true},canonicalSha256:Object.fromEntries(['materials','shapes','tints'].map(key=>[key,catalogDigest(bootstrap.catalogs[key])]))}));
       const current = await request('/api/catalogs',admin);assert.equal(current.status,200);assert.equal(current.json.revision,bootstrap.catalogRevision);assert.deepEqual(current.json.value,bootstrap.catalogs);
       assert.equal(bootstrap.documents.state.value, null); assert.deepEqual(bootstrap.documents.saved.value, []); assert.deepEqual(bootstrap.documents.skus.value.skus, []);
       const [[sessions]] = await pool.query('SELECT COUNT(*) AS n FROM leinz_sessions WHERE LENGTH(token_hash) = 32'); assert.equal(Number(sessions.n), 2);
@@ -196,7 +196,9 @@ try {
         assert.equal(write.status, 200, write.text);
         assert.deepEqual((await getDoc('state', admin)).value, next);
         const [[row]] = await pool.execute('SELECT document_json, revision FROM leinz_user_documents WHERE user_id = ? AND document_key = ?', [admin.user.id, 'state']);
-        assert.deepEqual(decodeJson(row.document_json), next);
+        assert.equal(decodeJson(row.document_json), null, 'Legacy draft JSON remains the original backup.');
+        const [[typed]] = await pool.execute('SELECT uv_exposure FROM leinz_rel_states WHERE document_id=?',[`user:${admin.user.id}:state`]);
+        assert.equal(typed.uv_exposure,next.uvExposure);
         assert.equal(Number(row.revision), write.json.revision);
         const conflicting = clone(next); conflicting.a.tintCode = '09S';
         const rejected = await putDoc('state', conflicting, write.json.revision, admin);
@@ -253,7 +255,7 @@ try {
         assert.equal(write.status, 200, write.text);
         assert.deepEqual((await getDoc('saved', admin)).value, [entry, ...previous.value]);
         const [[row]] = await pool.execute('SELECT document_json FROM leinz_user_documents WHERE user_id = ? AND document_key = ?', [admin.user.id, 'saved']);
-        assert.deepEqual(decodeJson(row.document_json)[0], entry);
+        assert.deepEqual(decodeJson(row.document_json), [], 'Legacy history JSON remains the original backup.');
         for (const mutate of [
           value => { value.data.choices[0].tint = { code: '09S' }; },
           value => { value.data.choices[0].photochromic.uvExposure = 60; },
@@ -345,18 +347,24 @@ try {
       const catalogs=(await request('/api/catalogs',admin)).json.value;
       const before={state:await getDoc('state',admin),saved:await getDoc('saved',admin),skus:await getDoc('skus',admin)};
       const [usersBefore]=await pool.query('SELECT id, username, password_hash, active FROM leinz_users ORDER BY id');
-      // Recreate precisely the pre-2.1 schema shape; only the newly introduced
-      // revision table and migration marker are absent in a 2.0 installation.
+      // Construct the actual pre-normalization JSON schema using current values.
+      for(const key of ['materials','shapes','tints']) await pool.execute('UPDATE leinz_catalog_documents SET document_json=? WHERE document_key=?',[JSON.stringify(catalogs[key]),key]);
+      await pool.execute("UPDATE leinz_workspace_documents SET document_json=? WHERE document_key='skus'",[JSON.stringify(before.skus.value)]);
+      for(const user of usersBefore) for(const key of ['state','saved']) {
+        const doc=await store.getDocument(user.id,key);
+        await pool.execute('UPDATE leinz_user_documents SET document_json=? WHERE user_id=? AND document_key=?',[JSON.stringify(doc.value),user.id,key]);
+      }
+      for(const name of [...TABLES].reverse().filter(name=>name.startsWith('leinz_rel_'))) await pool.query(`DROP TABLE \`${name}\``);
       await pool.query('DROP TABLE leinz_catalog_revision');
-      await pool.execute('DELETE FROM leinz_schema_migrations WHERE version = ?', [2]);
+      await pool.query('DELETE FROM leinz_schema_migrations WHERE version IN (2,3,4)');
       const migration=await cli('migrate');assert.equal(migration.code,0,migration.stderr);
       await seed(pool);await seed(pool);
       for(const key of ['state','saved','skus'])assert.deepEqual(await getDoc(key,admin),before[key]);
       assert.deepEqual((await request('/api/catalogs',admin)).json.value,catalogs);
       const [usersAfter]=await pool.query('SELECT id, username, password_hash, active FROM leinz_users ORDER BY id');assert.deepEqual(usersAfter,usersBefore);
       const doctor=await cli('doctor');assert.equal(doctor.code,0,doctor.stderr);const report=JSON.parse(doctor.stdout);
-      assert.equal(report.schemaVersion,2);assert.equal(report.tables,7);
-      assert.deepEqual(report.masterCounts,{products:19,blanks:186,powerRules:2026,frameShapes:13,tinting:66,skus:3});
+      assert.equal(report.schemaVersion,4);assert.equal(report.tables,TABLES.length);
+      assert.deepEqual(report.masterCounts,{products:91,blanks:796,powerRules:6829,frameShapes:13,tinting:66,skus:3});
       for(const key of ['materials','shapes','tints'])assert.equal(report.catalogContentSha256[key],catalogDigest(catalogs[key]));
     });
     await test('Manage CRUD writes all catalog types atomically and a second store reads fresh MySQL data', async () => {
@@ -470,7 +478,7 @@ try {
       assert.equal((await getDoc('state', admin)).value.a.note, 'QA restart marker 👓');
       assert.equal((await getDoc('saved', admin)).value.length, 1);
       assert.equal((await getDoc('skus', other)).value.skus.length, 3);
-      assert.equal((await request('/api/catalogs',admin)).json.value.materials.products.length,20);
+      assert.equal((await request('/api/catalogs',admin)).json.value.materials.products.length,92);
     });
     await test('Expired and logged-out sessions cannot access or mutate data', async () => {
       await pool.execute('UPDATE leinz_sessions SET expires_at = DATE_SUB(UTC_TIMESTAMP(), INTERVAL 1 HOUR) WHERE user_id = ?', [other.user.id]);

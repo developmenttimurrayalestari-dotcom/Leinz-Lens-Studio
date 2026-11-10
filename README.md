@@ -1,5 +1,24 @@
 # Leinz Lens Studio
 
+Master bahan diperbarui dari **DMO UNI OSA WXG TRN.xlsx**: 91 produk, 796 blank,
+6.829 aturan power dari supplier DMO, SOA, TRN, UNI, dan WXG. Lihat
+[hasil perbandingan](database/workbook-sync-report.json). Indeks 1.61 disimpan
+sesuai sumber sebagai katalog saja. Master blank/raw material, frame shape,
+tinting, dan SKU mendukung hapus per item maupun banyak item melalui checkbox.
+Referensi SKU/draft/riwayat diperiksa sebelum penghapusan.
+
+Pembaruan penyimpanan: backend sekarang memakai **skema relasional 4** dan tetap
+mempertahankan JSON lama sebagai cadangan. Sebelum menjalankan server pada
+database existing, ikuti [panduan normalisasi dan migrasi](docs/NORMALISASI_DATABASE.md).
+Jalankan `npm run db:migrate` juga setelah impor paket SQL. Bagian riwayat rilis
+di bawah menjelaskan perilaku versi lama sebelum normalisasi ini.
+
+Konfigurasi indeks SKU kini mendukung beberapa **range power per diameter**.
+Contoh: Ø65 dengan SPH −4 sampai +6 dan Ø70 dengan SPH −8 sampai +2 pada SKU
+yang sama. Tambah/hapus baris di editor SKU; tiap baris mempunyai batas
+SPH/CYL/ADD sendiri. Pada mode MySQL, jalankan `npm run db:migrate` sebelum
+restart untuk membuat tabel `leinz_rel_sku_power_ranges` (migrasi 004).
+
 Simulator konsultasi tint dan ilustrasi bentuk lensa untuk PT Timur Raya Lestari.
 Versi 2.2.0 menyediakan aplikasi server Node.js dengan database **MySQL 5.7.24**,
 serta preview statis yang menyimpan data di browser. Keduanya memakai antarmuka

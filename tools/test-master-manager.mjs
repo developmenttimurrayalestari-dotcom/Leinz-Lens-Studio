@@ -47,7 +47,7 @@ test('edited rule preserves historical provenance separately and keeps exact zer
   const current=copy(),blank=current.materials.blanks[0],d=ui.makeDraft('blank',blank,current);
   const prior=d.rules[0];d.rules[0]={...prior,sphFrom:'-9',sphTo:'-8',cylFrom:'0',cylTo:'0',addFrom:'0',addTo:'4'};
   const next=ui.buildCandidate(current,d),r=next.materials.rules.find(r=>r.id===prior.id);
-  assert.deepEqual(r.originalSource.sourceRows,prior.sourceRows);
+  assert.deepEqual(r.originalSource.sourceRows,prior.originalSource?.sourceRows||prior.sourceRows);
   assert.deepEqual(r.sourceRows,[]);assert.equal(r.source,'managed');
   assert.equal(r.cylFrom,0);assert.equal(r.cylTo,0);
   assert.equal(r.hasExactDuplicates,false);assert.equal(r.exactDuplicateCount,0);

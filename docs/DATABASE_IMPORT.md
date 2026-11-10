@@ -1,5 +1,9 @@
 # Impor database dan master data — Leinz Lens Studio 2.2.0
 
+Pembaruan skema 4 (range SKU per diameter): ikuti [panduan normalisasi](NORMALISASI_DATABASE.md).
+Sesudah impor SQL, jalankan `npm run db:migrate` untuk mengekstrak dan
+memverifikasi data relasional sebelum menjalankan server.
+
 Paket ini menyediakan **SQL MySQL 5.7.24 beserta seluruh master referensi yang
 tersedia di source**. Berkas SQL dapat diimpor langsung melalui MySQL client,
 phpMyAdmin, atau HeidiSQL. Source aplikasi dan file JSON master tetap disertakan.
@@ -13,11 +17,11 @@ dan konsultasi ikut terbawa. Petunjuk backup/restore ada pada
 
 | Berkas dalam `database/` | Isi dan penggunaan |
 | --- | --- |
-| `leinz-schema-and-master-data.sql` | **Pilihan utama untuk instalasi baru**: tujuh tabel, versi skema 1 dan 2, serta master referensi lengkap. |
+| `leinz-schema-and-master-data.sql` | **Pilihan utama untuk instalasi baru**: tabel lama dan relasional baru beserta master referensi lengkap; lanjutkan dengan `db:migrate` untuk backfill dan marker skema 4. |
 | `leinz-schema.sql` | Skema saja, termasuk tabel revisi katalog. Belum mengisi material, shape, tint, atau dokumen SKU. |
 | `leinz-master-data.sql` | Master saja. Impor setelah skema tersedia; gunakan jika pembuatan tabel ditangani terpisah. |
 | `master-data-inventory.json` | Jumlah record, perincian supplier/indeks/diameter, SHA-256 isi JSON, dan checksum ketiga SQL. |
-| `001_initial.sql`, `002_managed_catalogs.sql` | Migrasi aplikasi yang dipakai `npm run db:migrate`; tetap disertakan untuk instalasi dan upgrade melalui CLI. |
+| `001_initial.sql`, `002_managed_catalogs.sql`, `003_relational_documents.sql`, `004_sku_power_ranges.sql` | DDL yang dipakai `npm run db:migrate`; backfill Node.js wajib sebelum skema baru siap. |
 
 Pilih **SQL gabungan**, atau **skema lalu master**. Tidak perlu menjalankan kedua
 cara sekaligus. File yang telah selesai dibuat dapat langsung diimpor; tidak
@@ -27,22 +31,23 @@ perlu menjalankan generator terlebih dahulu.
 
 | Master | Jumlah |
 | --- | ---: |
-| Supplier pada produk material | 2: DMO dan SOA |
-| Produk material | 19 |
-| Spesifikasi blank | 186 |
-| Aturan power unik | 2.026 |
+| Supplier pada produk material | 5: DMO, SOA, TRN, UNI, WXG |
+| Produk material | 91 |
+| Spesifikasi blank | 796 |
+| Aturan power unik | 6.829 |
 | Frame shape | 13 |
 | Kode tinting | 66: 46 Solid dan 20 Gradient |
 | Master SKU produk finish | **0** pada sumber paket |
 
 Frame shape meliputi **001–009, Rounded/Bulat, Cat-eye, Rectangle, dan Square**.
 Indeks simulator tetap **1.50, 1.56, 1.57, 1.60, 1.67, dan 1.74**. Data indeks
-**1.59** dari sumber tetap tersimpan sebagai katalog, tanpa diaktifkan sebagai
+**1.59 dan 1.61** dari sumber tetap tersimpan sebagai katalog, tanpa diaktifkan sebagai
 pilihan simulator.
 
-Material mengikuti berkas koreksi **DMO UNV OSA(1).csv** yang sudah diproses pada
-source. Referensi ke seluruh **2.689 baris** sumber dipertahankan pada JSON,
-termasuk **663 baris duplikat identik**; record aturan unik tidak digandakan.
+Material mengikuti berkas **DMO UNI OSA WXG TRN.xlsx** yang sudah dibandingkan
+dengan database. Seluruh **6.829 baris** dipertahankan sebagai aturan unik,
+tanpa baris duplikat identik pada workbook baru. Provenance lama tetap tersedia
+pada record existing dan backup sebelum sinkronisasi.
 Diameter, base curve, CT/ET bahan, rentang power, dan relasi produk/blank tetap
 utuh. JSON juga menyimpan kontur frame, warna, sumber, dan catatan tinting.
 
@@ -53,17 +58,21 @@ power. Paket tidak menebak data tersebut. Jika SKU sudah dibuat pada instalasi
 lama, ekspor melalui **Manage → Master SKU → Ekspor JSON**, lalu impor di
 instalasi baru. SKU yang sudah ada dalam database target tetap dipertahankan.
 
-Semua master di atas tersimpan sebagai JSON native MySQL, bukan satu tabel per
-jenis lensa. Tabel `leinz_catalog_documents` berisi tiga dokumen: `materials`,
-`shapes`, dan `tints`. Tabel `leinz_workspace_documents` menyimpan dokumen `skus`.
-Tiga record katalog SQL tersebut memuat seluruh record master pada tabel jumlah
-di atas, termasuk metadata dan relasinya.
+Paket SQL membawa data referensi melalui kolom JSON lama, lalu `db:migrate`
+mengekstraknya ke tabel `leinz_rel_*`. Backend membaca dan menulis tabel
+relasional tersebut. Tabel `leinz_catalog_documents` mempertahankan tiga dokumen
+asal (`materials`, `shapes`, `tints`) sebagai backup; `leinz_workspace_documents`
+mempertahankan JSON SKU asal. Format respons API tetap sama.
 
 ## 3. Persiapan database
 
 Gunakan **database khusus aplikasi**, dengan MySQL 5.7.24, karakter `utf8mb4`,
 collation `utf8mb4_unicode_ci`, dan `max_allowed_packet` minimal 8 MB
 (konfigurasi yang disarankan pada panduan instalasi adalah 16M).
+
+Untuk impor paket SQL master terbaru, gunakan `max_allowed_packet` **minimal
+16 MB** karena literal hex master material berukuran lebih dari 8 MB. Jalankan
+`db:migrate` setelah impor untuk backfill relasional terverifikasi.
 
 Ikuti langkah pembuatan database dan akun MySQL pada
 [panduan instalasi](INSTALL_MYSQL57.md). SQL dalam paket tidak membuat database,

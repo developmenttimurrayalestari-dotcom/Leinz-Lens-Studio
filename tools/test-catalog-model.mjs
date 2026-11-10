@@ -13,7 +13,7 @@ const skuFor = (product,blank) => ({schema:'trl-sku-catalog/1.0',skus:[{id:'qa-s
 
 test('all existing master records validate without changing metadata or catalog-only 1.59',()=>{
   const result=valid(baseline);assert.deepEqual(result,baseline);assert.notEqual(result,baseline);
-  assert.deepEqual(Model.summarizeCatalogs(result),{products:19,blanks:186,rules:2026,shapes:13,tints:66,activeProducts:19,activeBlanks:186,activeRules:2026,activeShapes:13,activeTints:66,simulatorProducts:18,indices:['1.50','1.56','1.57','1.59','1.60','1.67','1.74']});
+  assert.deepEqual(Model.summarizeCatalogs(result),{products:91,blanks:796,rules:6829,shapes:13,tints:66,activeProducts:91,activeBlanks:796,activeRules:6829,activeShapes:13,activeTints:66,simulatorProducts:88,indices:['1.50','1.56','1.57','1.59','1.60','1.61','1.67','1.74']});
   const catalogOnly=result.materials.products.find(p=>p.index==='1.59');assert(catalogOnly);assert.equal(catalogOnly.activeForSimulator,false);
 });
 
@@ -24,7 +24,7 @@ test('a complete new material, blank, power rule, shape and tint can be added at
   value.materials.rules.push({id:'qa-rule',blankId:'QA:NEW:80',sphFrom:-10,sphTo:8,cylFrom:-6,cylTo:0,addFrom:0,addTo:4,sourceRows:[],exactDuplicateCount:0,hasExactDuplicates:false,source:'managed'});
   value.shapes.items.push({code:'qa-square',name:'QA Square',category:'additional',points:[[-.5,-.5],[.5,-.5],[.5,.5],[-.5,.5]],defaultWidthMm:52,defaultHeightMm:40,contourMode:'vector',active:true});
   value.tints.items.push({code:'QA-TINT',name:'QA Blue',kind:'Gradient',group:'fashion',nominalPercent:null,previewHex:'#123456',previewMidHex:null,previewBottomHex:'#ffffff',referenceStatus:'manual',referenceNote:'Contoh pengguna',active:true});
-  valid(value,{previous:baseline});assert.equal(value.materials.products.length,20);
+  valid(value,{previous:baseline});assert.equal(value.materials.products.length,baseline.materials.products.length+1);
 });
 
 test('archives preserve identities and existing SKU assignments',()=>{
@@ -104,7 +104,7 @@ test('prototype keys, non-JSON values and bounded collection limits fail safely'
   const proto=fixture();proto.extra=JSON.parse('{"__proto__":{"polluted":true}}');invalid(proto);assert.equal({}.polluted,undefined);
   const nan=fixture();nan.extra=NaN;invalid(nan);
   const fn=fixture();fn.extra=()=>true;invalid(fn);
-  const over=fixture();over.shapes.items=Array(201).fill(over.shapes.items[0]);assert.match(invalid(over),/batas 200/);
+  const over=fixture();over.shapes.items=Array(201).fill(over.shapes.items[0]);assert.match(invalid(over),/batas 200|terlalu besar/);
 });
 
 test('validation is deterministic, preserves input, and offers the documented throwing alias',()=>{

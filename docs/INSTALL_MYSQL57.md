@@ -1,6 +1,10 @@
 # Instalasi Leinz Lens Studio 2.1.0 — MySQL 5.7.24
 
-Panduan ini untuk paket **Leinz-Lens-Studio-2.1.0-MySQL57.zip**. Folder utama di dalam ZIP adalah `leinz-lens-studio`. Jalankan perintah aplikasi dari folder yang memuat `package.json`, `server/`, `dist/`, dan `database/`.
+Untuk kode terbaru dengan skema relasional 4, ikuti juga
+[panduan normalisasi dan migrasi](NORMALISASI_DATABASE.md). Database existing
+memerlukan `npm run db:migrate` dengan seluruh penulis aplikasi dihentikan.
+
+Panduan ini awalnya untuk paket **Leinz-Lens-Studio-2.1.0-MySQL57.zip**. Folder utama di dalam ZIP adalah `leinz-lens-studio`. Jalankan perintah aplikasi dari folder yang memuat `package.json`, `server/`, `dist/`, dan `database/`.
 
 Versi ini menjalankan frontend dan API melalui **Node.js**, lalu menyimpan data pada **MySQL**. Aplikasi tidak memerlukan PHP, Composer, Python, bundler frontend, atau compiler C/C++. `npm run build` memeriksa sintaks JavaScript, aset, dan katalog; tidak menghasilkan binary native.
 

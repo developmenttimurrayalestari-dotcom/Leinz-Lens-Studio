@@ -26,7 +26,7 @@
       this.fetch = fetchImpl || global.fetch?.bind(global);
       try { this.local = localStorage || global.localStorage; } catch { this.local = null; }
       this.onStatus = onStatus; this.timeoutMs = timeoutMs;
-      this.documents = new Map(); this.queues = new Map(); this.pending = new Map();
+      this.documents = new Map(); this.queues = new Map(); this.pending = new Map(); this.pendingOptions = new Map();
       this.failures = new Map(); this.conflicts = new Set(); this.inflight = 0;
       this.user = null; this.csrfToken = null; this.authenticated = this.mode === 'browser';
       this.loaded = false; this.catalogs = null; this.baseCatalogs = null;
@@ -119,7 +119,7 @@
     }
     getCatalogs() { return this.catalogs === null ? null : JSON.parse(JSON.stringify(this.catalogs)); }
     getCatalogRevision() { return this.mode === 'mysql' ? this.documents.get(CATALOG_KEY)?.revision ?? null : null; }
-    async saveCatalogs(value) {
+    async saveCatalogs(value,options = {}) {
       if (!this.loaded) throw error('Master belum dimuat.', 'NOT_INITIALIZED');
       if (this.mode === 'browser') {
         let current;
@@ -127,7 +127,7 @@
         catch { throw error('Master browser belum dapat dibaca; penyimpanan dibatalkan.', 'LOCAL_STORAGE'); }
         if (!equal(current,this.catalogs)) throw error('Master berubah pada tab lain. Muat master terbaru sebelum menyimpan.', 'CONFLICT',409);
       }
-      await this.setItem(CATALOG_KEY,JSON.stringify(value));
+      await this.setItem(CATALOG_KEY,JSON.stringify(value),options);
       if (this.mode === 'browser') this.catalogs = JSON.parse(this.getItem(CATALOG_KEY));
       return this.getCatalogs();
     }
@@ -145,7 +145,7 @@
       if (!Object.hasOwn(KEYS,key)) throw error('Jenis data tidak dikenal.', 'INVALID_KEY');
       return this.documents.get(key)?.text ?? null;
     }
-    setItem(key, text) {
+    setItem(key, text, options = {}) {
       if (this.mode === 'browser') {
         try {
           if (!this.local) throw error('Penyimpanan browser tidak tersedia. Gunakan ekspor JSON.', 'LOCAL_STORAGE');
@@ -157,7 +157,7 @@
       let value;
       try { value = JSON.parse(text); } catch { return Promise.reject(error('Data belum berupa JSON yang valid.', 'INVALID_JSON')); }
       const canonical = JSON.stringify(value);
-      this.pending.set(key,canonical); this._emit();
+      this.pending.set(key,canonical); this.pendingOptions.set(key,options); this._emit();
       const job = (this.queues.get(key) || Promise.resolve()).catch(() => {}).then(async () => {
         this.inflight++; this._emit();
         try {
@@ -167,7 +167,7 @@
           if (!current) throw error('Data server belum dimuat.', 'NOT_INITIALIZED');
           if (!this._sameValue(key,current.value,value)) {
             let saved;
-            try { saved = await this._request(this._documentPath(key), {method:'PUT',body:{value,revision:current.revision}}); }
+            try { saved = await this._request(this._documentPath(key), {method:'PUT',body:{value,revision:current.revision,...(options.deletion?{deletion:options.deletion}:{})}}); }
             catch (e) {
               // A lost HTTP acknowledgement may still mean the transaction committed.
               // A read can confirm exactly that value without issuing another write.
@@ -188,7 +188,7 @@
             }
             this._accept(key,saved);
           }
-          if (this.pending.get(key) === canonical) this.pending.delete(key);
+          if (this.pending.get(key) === canonical) {this.pending.delete(key);this.pendingOptions.delete(key);}
           this.failures.delete(key);
         } catch (e) { this.failures.set(key,e); throw e; }
         finally { this.inflight--; this._emit(); }
@@ -200,7 +200,7 @@
     }
     async retryPending() {
       await this.flush(false);
-      const writes = [...this.pending].map(([key,text]) => this.setItem(key,text));
+      const writes = [...this.pending].map(([key,text]) => this.setItem(key,text,this.pendingOptions.get(key)||{}));
       const results = await Promise.allSettled(writes);
       const failed = results.find(r => r.status === 'rejected');
       if (failed) throw failed.reason;

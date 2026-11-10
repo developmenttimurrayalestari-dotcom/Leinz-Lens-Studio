@@ -14,7 +14,18 @@
   const finite = value => (typeof value === 'number' || typeof value === 'string') && String(value).trim() !== '' && Number.isFinite(Number(value));
   const numberText = value => Number(value).toLocaleString('id-ID',{maximumFractionDigits:2});
   const emptyPower = () => Object.fromEntries(POWER_KEYS.map(key => [key,'']));
-  const emptyVariant = index => ({index,enabled:true,power:emptyPower(),assignments:[]});
+  const emptyRange = () => ({diameter:'',...emptyPower(),addMin:0,addMax:0});
+  const emptyVariant = index => ({index,enabled:true,powerRanges:[emptyRange()],assignments:[]});
+  function editableRanges(variant,materials) {
+    if (Array.isArray(variant.powerRanges)) return variant.powerRanges;
+    const power=variant.power||{},ids=new Set((variant.assignments||[]).flatMap(a=>a.blankIds||[]));
+    const diameters=[...new Set((materials.blanks||[]).filter(b=>ids.has(b.id)&&
+      (power.diameterMin==null||b.diameter>=power.diameterMin)&&(power.diameterMax==null||b.diameter<=power.diameterMax)).map(b=>b.diameter))].sort((a,b)=>a-b);
+    const emptyDisabled=!variant.enabled&&!diameters.length&&POWER_KEYS.every(k=>power[k]==null||power[k]==='');
+    variant.powerRanges=(diameters.length?diameters:emptyDisabled?[]:['']).map(diameter=>({diameter,...Object.fromEntries(POWER_KEYS.map(k=>[k,power[k]??'']))}));
+    delete variant.power;
+    return variant.powerRanges;
+  }
   const skuContent = value => {
     const item=clone(value);delete item.createdAt;delete item.updatedAt;
     item.variants.sort((a,b)=>a.index.localeCompare(b.index));
@@ -44,6 +55,25 @@
       seenIndices.add(index);
       if (typeof raw.enabled !== 'boolean') errors.push(prefix + 'status ketersediaan harus berupa boolean.');
       const power = {};
+      const multiple = Object.hasOwn(raw,'powerRanges');
+      let powerRanges;
+      if (multiple) {
+        powerRanges=[];
+        if(!Array.isArray(raw.powerRanges)||raw.powerRanges.length>2000||(raw.enabled&&!raw.powerRanges.length))errors.push(prefix+'tambahkan minimal satu range power per diameter (maksimal 2.000 baris).');
+        for(const [i,row]of (Array.isArray(raw.powerRanges)?raw.powerRanges:[]).entries()) {
+          const label=prefix+'baris '+(i+1)+': ',range={};
+          if(!row||typeof row!=='object'||Array.isArray(row)){errors.push(label+'format range tidak valid.');continue;}
+          for(const key of ['diameter',...POWER_KEYS]) {
+            if(!finite(row[key]))errors.push(label+key+' wajib berupa angka yang valid.');
+            else range[key]=Number(row[key]);
+          }
+          if(range.diameter<20||range.diameter>150)errors.push(label+'diameter harus 20–150 mm.');
+          for(const [lo,hi,name]of [['sphMin','sphMax','SPH'],['cylMin','cylMax','CYL'],['addMin','addMax','ADD']])if(range[lo]>range[hi])errors.push(label+'batas minimum '+name+' melebihi maksimum.');
+          if(range.cylMin>0||range.cylMax>0)errors.push(label+'gunakan CYL minus (maksimum 0).');
+          if(range.addMin<0||range.addMax<0)errors.push(label+'ADD tidak boleh negatif.');
+          powerRanges.push(range);
+        }
+      } else {
       for (const key of POWER_KEYS) {
         const value = raw.power?.[key];
         if (finite(value)) power[key] = Number(value);
@@ -54,6 +84,17 @@
       }
       if ([power.cylMin,power.cylMax].some(v => v !== null && v > 0)) errors.push(prefix + 'gunakan konvensi CYL minus (maksimum 0).');
       if ([power.addMin,power.addMax].some(v => v !== null && v < 0)) errors.push(prefix + 'ADD tidak boleh negatif.');
+      const diameterKeys = ['diameterMin','diameterMax'];
+      const hasDiameter = diameterKeys.some(key => raw.power?.[key] !== undefined && raw.power[key] !== null && String(raw.power[key]).trim() !== '');
+      if (hasDiameter) {
+        for (const key of diameterKeys) {
+          const value = raw.power?.[key];
+          if (!finite(value) || Number(value) < 20 || Number(value) > 150) errors.push(prefix + 'diameter minimum dan maksimum wajib berupa angka 20–150 mm.');
+          else power[key] = Number(value);
+        }
+        if (power.diameterMin > power.diameterMax) errors.push(prefix + 'batas minimum diameter melebihi maksimum.');
+      }
+      }
       const assignments = [], seenProducts = new Set(), seenAssignments = new Set();
       if (!Array.isArray(raw.assignments)) errors.push(prefix + 'daftar assignment blank tidak valid.');
       for (const a of Array.isArray(raw.assignments) ? raw.assignments : []) {
@@ -81,7 +122,7 @@
         assignments.push({id:a.id,supplier:a.supplier,productId:a.productId,blankIds:[...blankIds]});
       }
       if (raw.enabled && !assignments.length) errors.push(prefix + 'tambahkan supplier, produk bahan baku, dan blank yang boleh digunakan.');
-      variants.push({index,enabled:raw.enabled === true,power,assignments});
+      variants.push({index,enabled:raw.enabled === true,...(multiple?{powerRanges}:{power}),assignments});
     }
     if (input.active && !variants.some(v => v.enabled)) errors.push('SKU aktif harus mempunyai setidaknya satu indeks yang diaktifkan.');
     const sku = {id:input.id,code,name,active:input.active === true,variants,
@@ -134,12 +175,13 @@
   }
 
   class SkuManager {
-    constructor({container,materials,indices=DEFAULT_INDICES,onChange=()=>{},onNotify=()=>{},storage,storageMode='browser'} = {}) {
+    constructor({container,materials,indices=DEFAULT_INDICES,onChange=()=>{},onNotify=()=>{},storage,storageMode='browser',getDocuments=()=>[]} = {}) {
       if (!container || !container.addEventListener) throw new TypeError('SkuManager memerlukan container DOM.');
       this.container=container;this.materials=materials;this.indices=indices;this.onChange=onChange;this.onNotify=onNotify;
       this.storage=storage;this.storageMode=['mysql','server'].includes(storageMode)?'mysql':'browser';this.saving=false;this._disabledControls=[];
       if(this.storage===undefined){try{this.storage=global.localStorage;}catch{this.storage=null;}}
       this.context={materials,indices};this.skus=[];this.storageSnapshot=null;this.storageError='';this.storageInvalid=false;this.draft=null;this.draftIndex=null;this.draftBase=null;this.importPlan=null;this.importBase=null;this.filter='';this.showInactive=false;
+      this.selected=new Set();this.getDocuments=getDocuments;
       this.products=new Map(materials.products.map(p=>[p.id,p]));this.blanks=new Map(materials.blanks.map(b=>[b.id,b]));
       this._readStorage();this._renderShell();this._bind();
       this._storageEvent=e=>{if(e.key===STORAGE_KEY){this._readStorage();this._renderList();if(this.draft)this._editorErrors(['Master SKU berubah di tab lain. Periksa ulang sebelum menyimpan.']);this.onChange(this.getSkus({includeInactive:true}));}};
@@ -213,10 +255,22 @@
       const query=this.filter.toLocaleLowerCase('id-ID');
       const rows=this.skus.filter(s=>(this.showInactive||s.active)&&(!query||(s.code+' '+s.name).toLocaleLowerCase('id-ID').includes(query)));
       const warning=this._q('#sku-storage-warning');if(warning){warning.hidden=!this.storageError;warning.textContent=this.storageError;}
-      this._q('#sku-master-list').innerHTML=rows.length?rows.map(s=>{
+      this.selected??=new Set();
+      for(const id of this.selected)if(!this.skus.some(s=>s.id===id))this.selected.delete(id);
+      const controls='<div class="sku-bulk-controls"><span>'+this.selected.size+' SKU terpilih</span><button type="button" class="text-button" data-sku-action="select-visible">Pilih semua ditampilkan</button><button type="button" class="text-button" data-sku-action="clear-selected">Batalkan pilihan</button><button type="button" class="button secondary" data-sku-action="delete-selected" '+(!this.selected.size?'disabled':'')+'>Hapus terpilih ('+this.selected.size+')</button></div>';
+      this._q('#sku-master-list').innerHTML=controls+(rows.length?rows.map(s=>{
         const enabled=s.variants.filter(v=>v.enabled),assignmentCount=enabled.reduce((n,v)=>n+v.assignments.length,0),blankCount=enabled.reduce((n,v)=>n+v.assignments.reduce((x,a)=>x+a.blankIds.length,0),0);
-        return '<article class="sku-master-card '+(!s.active?'sku-is-inactive':'')+'"><div class="sku-card-copy"><div class="sku-code-row"><strong>'+escapeHtml(s.code)+'</strong><span class="sku-status '+(s.active?'':'inactive')+'">'+(s.active?'Aktif':'Nonaktif')+'</span></div><h3>'+escapeHtml(s.name)+'</h3><div class="sku-index-tags">'+enabled.map(v=>'<span>'+escapeHtml(v.index)+'</span>').join('')+'</div><p>'+assignmentCount+' assignment bahan · '+blankCount+' spesifikasi blank</p></div><div class="sku-card-actions"><button type="button" class="button secondary" data-sku-action="edit" data-sku-id="'+escapeHtml(s.id)+'">Ubah</button><button type="button" class="text-button" data-sku-action="toggle" data-sku-id="'+escapeHtml(s.id)+'">'+(s.active?'Nonaktifkan':'Aktifkan kembali')+'</button></div></article>';
-      }).join(''):'<div class="sku-empty"><h3>'+(this.skus.length?'Tidak ada SKU yang sesuai.':'Belum ada SKU produk.')+'</h3><p>'+(this.skus.length?'Ubah pencarian atau tampilkan SKU nonaktif.':'Tambahkan kode produk lensa jadi, aktifkan indeks, lalu pilih supplier dan blank dari katalog.')+'</p>'+(!this.skus.length?'<button type="button" class="button primary" data-sku-action="new">Tambah SKU pertama</button>':'')+'</div>';
+        return '<article class="sku-master-card '+(!s.active?'sku-is-inactive':'')+'"><label class="sku-select-item"><input type="checkbox" data-sku-select="1" value="'+escapeHtml(s.id)+'" aria-label="Pilih SKU '+escapeHtml(s.code)+'" '+(this.selected.has(s.id)?'checked':'')+'></label><div class="sku-card-copy"><div class="sku-code-row"><strong>'+escapeHtml(s.code)+'</strong><span class="sku-status '+(s.active?'':'inactive')+'">'+(s.active?'Aktif':'Nonaktif')+'</span></div><h3>'+escapeHtml(s.name)+'</h3><div class="sku-index-tags">'+enabled.map(v=>'<span>'+escapeHtml(v.index)+'</span>').join('')+'</div><p>'+assignmentCount+' assignment bahan · '+blankCount+' spesifikasi blank</p></div><div class="sku-card-actions"><button type="button" class="button secondary" data-sku-action="edit" data-sku-id="'+escapeHtml(s.id)+'">Ubah</button><button type="button" class="text-button sku-delete" data-sku-action="delete" data-sku-id="'+escapeHtml(s.id)+'">Hapus</button><button type="button" class="text-button" data-sku-action="toggle" data-sku-id="'+escapeHtml(s.id)+'">'+(s.active?'Nonaktifkan':'Aktifkan kembali')+'</button></div></article>';
+      }).join(''):'<div class="sku-empty"><h3>'+(this.skus.length?'Tidak ada SKU yang sesuai.':'Belum ada SKU produk.')+'</h3><p>'+(this.skus.length?'Ubah pencarian atau tampilkan SKU nonaktif.':'Tambahkan kode produk lensa jadi, aktifkan indeks, lalu pilih supplier dan blank dari katalog.')+'</p>'+(!this.skus.length?'<button type="button" class="button primary" data-sku-action="new">Tambah SKU pertama</button>':'')+'</div>');
+    }
+    async deleteItems(ids) {
+      if(this.saving||!ids.length)return false;
+      if(ids.some(id=>!this.skus.some(s=>s.id===id))){this._notice('SKU berubah atau sudah dihapus. Muat data terbaru.');return false;}
+      const removed=new Set(ids),used=s=>s&&['a','b'].some(k=>removed.has(s[k]?.skuId));
+      if((this.getDocuments?.()||[]).some(d=>used(d)||Array.isArray(d)&&d.some(e=>used(e?.state)))){this._notice('SKU masih dipakai dalam draft atau riwayat konsultasi. Lepaskan referensinya sebelum menghapus.');return false;}
+      if(global.confirm&&!global.confirm('Hapus '+ids.length+' SKU terpilih beserta konfigurasi indeks dan assignment-nya?'))return false;
+      const ok=await this._commit(this.skus.filter(s=>!removed.has(s.id)));
+      if(ok){for(const id of ids)this.selected?.delete(id);if(removed.has(this.draft?.id))this._closeEditor();this._renderList();this._notice(ids.length+' SKU berhasil dihapus.');}return ok;
     }
     openEditor(skuId) {
       const current=skuId?this.skus.find(s=>s.id===skuId):null;
@@ -231,11 +285,15 @@
       this._renderVariant();
     }
     _variant() { return this.draft?.variants.find(v=>v.index===this.draftIndex) || null; }
+    _rangeMarkup(range,row,index) {
+      const columns=[['diameter','Diameter (mm)'],['sphMin','SPH minimum'],['sphMax','SPH maksimum'],['cylMin','CYL minimum'],['cylMax','CYL maksimum'],['addMin','ADD minimum'],['addMax','ADD maksimum']];
+      return '<tr>'+columns.map(([key,label])=>'<td><input type="number" step="any" '+(key==='diameter'?'min="20" max="150" ':key.startsWith('cyl')?'max="0" ':key.startsWith('add')?'min="0" ':'')+'data-sku-range="'+row+'" data-sku-range-field="'+key+'" aria-label="'+label+' baris '+(row+1)+' indeks '+index+'" value="'+escapeHtml(range[key]??'')+'" placeholder="'+(key==='diameter'?'65':key.startsWith('add')?'0':'')+'"></td>').join('')+'<td><button type="button" class="sku-remove-assignment" data-sku-action="remove-range" data-range-row="'+row+'" aria-label="Hapus range baris '+(row+1)+'">×</button></td></tr>';
+    }
     _renderVariant() {
       if(!this.draft)return;const variant=this._variant();
       this._q('#sku-variant-tabs').innerHTML=this.draft.variants.map(v=>'<button type="button" class="'+(v.index===this.draftIndex?'active':'')+'" data-sku-variant="'+v.index+'">Indeks '+v.index+(v.enabled?'':' · nonaktif')+'</button>').join('');
       if(!variant){this._q('#sku-variant-editor').innerHTML='<div class="sku-variant-empty">Aktifkan sebuah indeks di atas untuk mengisi rentang power dan memilih blank.</div>';return;}
-      this._q('#sku-variant-editor').innerHTML='<div class="sku-variant-heading"><h3>Konfigurasi indeks '+variant.index+'</h3><span class="sku-status '+(variant.enabled?'':'inactive')+'">'+(variant.enabled?'Tersedia pada SKU':'Indeks dinonaktifkan')+'</span></div><div class="sku-power-block"><div><h4>Range power lensa finish / SKU</h4><p>Isikan batas inklusif. Untuk SKU tanpa ADD, isi minimum dan maksimum 0. Gunakan CYL minus.</p></div><div class="sku-power-table"><div class="sku-power-table-heading"><span>Power</span><span>Minimum</span><span>Maksimum</span></div>'+[['sph','SPH'],['cyl','CYL −'],['add','ADD']].map(([key,label])=>'<div class="sku-power-row"><strong>'+label+'</strong>'+['Min','Max'].map((part,i)=>'<input type="number" step="0.25" data-sku-power="'+key+part+'" aria-label="'+(key==='cyl'?'CYL':label)+' '+(i?'maksimum':'minimum')+' indeks '+variant.index+'" value="'+escapeHtml(variant.power[key+part]??'')+'" placeholder="'+(i?'Sampai':'Dari')+'">').join('')+'</div>').join('')+'</div></div><div class="sku-assignment-heading"><div><h4>Supplier dan blank yang diizinkan</h4><p>Pilih spesifikasi per diameter dan base curve. CT/ET tetap milik bahan baku.</p></div><button type="button" class="button secondary" data-sku-action="add-assignment">+ Assign blank</button></div><div class="sku-assignments">'+(variant.assignments.length?variant.assignments.map(a=>this._assignmentMarkup(a,variant)).join(''):'<div class="sku-variant-empty">Belum ada assignment. Klik Assign blank untuk memilih supplier dan produk bahan baku.</div>')+'</div>';
+      this._q('#sku-variant-editor').innerHTML='<div class="sku-variant-heading"><h3>Konfigurasi indeks '+variant.index+'</h3><span class="sku-status '+(variant.enabled?'':'inactive')+'">'+(variant.enabled?'Tersedia pada SKU':'Indeks dinonaktifkan')+'</span></div><div class="sku-range-block"><div class="sku-range-heading"><div><h4>Range power per diameter</h4><p>Setiap baris berlaku untuk satu diameter. SPH, CYL, dan ADD harus cocok bersamaan pada baris yang sama. Gunakan CYL minus; untuk tanpa ADD, isi 0–0.</p></div><button type="button" class="button secondary" data-sku-action="add-range">+ Tambah range diameter</button></div><div class="sku-range-scroll"><table class="sku-range-table"><thead><tr><th>Diameter (mm)</th><th>SPH min.</th><th>SPH maks.</th><th>CYL min.</th><th>CYL maks.</th><th>ADD min.</th><th>ADD maks.</th><th></th></tr></thead><tbody>'+editableRanges(variant,this.materials).map((range,i)=>this._rangeMarkup(range,i,variant.index)).join('')+'</tbody></table></div>'+(variant.powerRanges.length?'':'<p class="sku-select-help">Belum ada range diameter. Tambahkan range untuk indeks ini.</p>')+'</div><div class="sku-assignment-heading"><div><h4>Supplier dan blank yang diizinkan</h4><p>Pilih spesifikasi per diameter dan base curve. CT/ET tetap milik bahan baku.</p></div><button type="button" class="button secondary" data-sku-action="add-assignment">+ Assign blank</button></div><div class="sku-assignments">'+(variant.assignments.length?variant.assignments.map(a=>this._assignmentMarkup(a,variant)).join(''):'<div class="sku-variant-empty">Belum ada assignment. Klik Assign blank untuk memilih supplier dan produk bahan baku.</div>')+'</div>';
     }
     _assignmentMarkup(a,variant) {
       const products=this.materials.products.filter(p=>p.activeForSimulator&&p.index===variant.index&&(p.active!==false||p.id===a.productId));
@@ -305,12 +363,18 @@
         const button=e.target.closest('button');if(!button||!this.container.contains(button))return;
         if(this.saving)return;
         const action=button.dataset.skuAction,variant=this._variant();
+        if(action==='select-visible'){this.selected??=new Set();for(const el of this.container.querySelectorAll('[data-sku-select]'))this.selected.add(el.value);this._renderList();return;}
+        if(action==='clear-selected'){this.selected?.clear();this._renderList();return;}
+        if(action==='delete-selected'){await this.deleteItems([...(this.selected||[])]);return;}
+        if(action==='delete'){await this.deleteItems([button.dataset.skuId]);return;}
         if(button.dataset.skuVariant){this.draftIndex=button.dataset.skuVariant;this._renderVariant();return;}
         if(action==='new')this.openEditor();
         else if(action==='edit')this.openEditor(button.dataset.skuId);
         else if(action==='toggle')await this._toggle(button.dataset.skuId);
         else if(action==='close')this._closeEditor();
         else if(action==='export')this._export();
+        else if(action==='add-range'&&variant){editableRanges(variant,this.materials).push(emptyRange());this._renderVariant();}
+        else if(action==='remove-range'&&variant){editableRanges(variant,this.materials).splice(Number(button.dataset.rangeRow),1);this._renderVariant();}
         else if(action==='add-assignment'&&variant){variant.assignments.push({id:id('assignment'),supplier:'',productId:'',blankIds:[]});this._renderVariant();}
         else if(action==='remove-assignment'&&variant){variant.assignments=variant.assignments.filter(a=>a.id!==button.dataset.assignmentId);this._renderVariant();}
         else if(['select-blanks','clear-blanks','diameter'].includes(action)&&variant){
@@ -331,12 +395,13 @@
         if(!this.draft)return;
         if(t.id==='sku-code')this.draft.code=t.value;
         else if(t.id==='sku-name')this.draft.name=t.value;
-        else if(t.dataset.skuPower&&this._variant())this._variant().power[t.dataset.skuPower]=t.value;
+        else if(t.dataset.skuRangeField&&this._variant()){const row=editableRanges(this._variant(),this.materials)[Number(t.dataset.skuRange)];if(row&&['diameter',...POWER_KEYS].includes(t.dataset.skuRangeField))row[t.dataset.skuRangeField]=t.value;}
       };
       this._change=e=>{
         if(this.saving)return;
         const t=e.target;
         if(t.id==='sku-import-file'){this._readImport(t.files?.[0]);return;}
+        if(t.dataset.skuSelect){this.selected??=new Set();t.checked?this.selected.add(t.value):this.selected.delete(t.value);this._renderList();return;}
         if(t.id==='sku-show-inactive'){this.showInactive=t.checked;this._renderList();return;}
         if(!this.draft)return;
         if(t.id==='sku-active'){this.draft.active=t.checked;return;}
@@ -352,7 +417,7 @@
     }
     destroy() { this.container.removeEventListener('click',this._click);this.container.removeEventListener('input',this._input);this.container.removeEventListener('change',this._change);this.container.removeEventListener('submit',this._submit);global.removeEventListener?.('storage',this._storageEvent); }
   }
-  SkuManager.helpers={SCHEMA,STORAGE_KEY,validateSku,validateCatalog,planImport,emptyVariant,escapeHtml};
+  SkuManager.helpers={SCHEMA,STORAGE_KEY,validateSku,validateCatalog,planImport,emptyVariant,editableRanges,escapeHtml};
   global.SkuManager=SkuManager;
   if(typeof module!=='undefined'&&module.exports)module.exports={SkuManager,...SkuManager.helpers};
 })(typeof window!=='undefined'?window:globalThis);

@@ -2,7 +2,7 @@ import { createRequire } from 'node:module';
 import { validationError } from './errors.mjs';
 const require = createRequire(import.meta.url);
 const { validateCatalog, SCHEMA } = require('../dist/sku-manager.js');
-const { validateCatalogBundle, validateOpticalProfile } = require('../dist/catalog-model.js');
+const { validateCatalogBundle, validateOpticalProfile, deleteItems } = require('../dist/catalog-model.js');
 const { validateExposure, validateSnapshot } = require('../dist/photochromic.js');
 const INDICES = ['1.50', '1.56', '1.57', '1.60', '1.67', '1.74'];
 const BOUNDS = {
@@ -134,4 +134,9 @@ export function validateMasterCatalogs(value, context = {}) {
   const checked = validateCatalogBundle(value, context);
   if (!checked.ok) throw validationError(checked.errors.slice(0, 10).join(' '));
   return checked.value;
+}
+
+export function validateMasterDeletion(current,deletion,context) {
+  try{return deleteItems(current,deletion?.kind,deletion?.ids,context);}
+  catch(error){throw validationError(error.message);}
 }

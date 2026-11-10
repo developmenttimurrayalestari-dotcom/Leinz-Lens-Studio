@@ -67,11 +67,11 @@ assert.ok(frame({ heightR: 29 }).eyes.R.requiredDiameter > centered.eyes.R.requi
 // Existing source fixtures retain exact product identity and all BC alternatives.
 const dmo = evaluate({ productId: 'DMO:SPHG60' });
 assert.equal(dmo.summary.eligibleBothCount, 1);
-assert.deepEqual(dmo.rows.filter(r => r.eligibleBoth).map(r => r.sourceRows), [[45]]);
+assert.deepEqual(dmo.rows.filter(r => r.eligibleBoth).map(r => r.sourceRows), [[9]]);
 assert.equal(dmo.rows.find(r => r.eligibleBoth).blank.diameter, 75);
 const soa = evaluate();
 assert.equal(soa.summary.eligibleBothCount, 4);
-assert.deepEqual(soa.rows.filter(r => r.eligibleBoth).map(r => r.sourceRows[0]).sort((a,b) => a-b), [1961,1962,2192,2193]);
+assert.deepEqual(soa.rows.filter(r => r.eligibleBoth).map(r => r.sourceRows[0]).sort((a,b) => a-b), [1148,1149,1264,1265]);
 assert.equal(soa.summary.minDiameterBoth, 70);
 assert.ok(soa.rows.every(r => r.blank.productId === 'SOA:SPHW60'));
 assert.equal(soa.rows.length, materials.blanks.filter(b => b.productId === 'SOA:SPHW60').length);
@@ -136,6 +136,19 @@ assert.equal(selected.skuPowerAllowed,true);
 assert.equal(selected.summary.assignedCount,1);
 assert.deepEqual(selected.rows.filter(r=>r.eligibleBoth).map(r=>r.blank.id),[allowedBlank]);
 assert.equal(selected.summary.minDiameterBoth,75);
+// SKU diameter limits apply inclusively in addition to assignment, raw power
+// coverage and the geometric diameter required by each eye.
+const diameterRange = (min,max) => evaluate({skuVariant:{...variant,power:{...variant.power,diameterMin:min,diameterMax:max}}});
+assert.equal(diameterRange(75,75).summary.minDiameterBoth,75);
+for(const limits of [[65,74.9],[75.1,80]]) {
+  const result = diameterRange(...limits);
+  assert.equal(result.valid,true);
+  assert.equal(result.summary.eligibleBothCount,0);
+  assert.deepEqual(result.summary.powerEligibleDiameters,[]);
+  assert(result.rows.find(r=>r.blank.id===allowedBlank).reasons.includes('sku-diameter-outside'));
+}
+for(const limits of [[80,65],[19,75],[65,151],['',75],[65,null]])assert.equal(diameterRange(...limits).valid,false);
+assert.equal(diameterRange('','').summary.minDiameterBoth,75);
 const outside = evaluate({ skuVariant:{...variant,power:{...variant.power,sphMax:-5}} });
 assert.equal(outside.valid,true);
 assert.equal(outside.skuPowerAllowed,false);
@@ -208,10 +221,13 @@ assert.deepEqual(mixed.rows[0].sourceRows,[3]);
 assert.deepEqual(mixed.rows[0].allSourceRows,[2,3]);
 
 // Duplicate CSV lines remain provenance, not additional blank candidates.
-const duplicateRule = materials.rules.find(r=>r.hasExactDuplicates);
+const duplicateMaterials = structuredClone(materials);
+const duplicateRule = duplicateMaterials.rules.find(r=>r.hasExactDuplicates)||duplicateMaterials.rules[0];
+duplicateRule.hasExactDuplicates=true;duplicateRule.exactDuplicateCount=2;duplicateRule.sourceRows=[2,3,4];
 const duplicateBlank = materials.blanks.find(b=>b.id===duplicateRule.blankId);
 const duplicateProduct = materials.products.find(p=>p.id===duplicateBlank.productId);
 const duplicates = evaluate({
+  materials:duplicateMaterials,
   index:duplicateProduct.index,productId:duplicateProduct.id,
   rx:{sph:(duplicateRule.sphFrom+duplicateRule.sphTo)/2,cyl:duplicateRule.cylFrom,add:duplicateRule.addFrom}
 });

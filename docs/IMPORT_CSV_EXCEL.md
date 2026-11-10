@@ -89,7 +89,7 @@ Menggabungkan minimum/maksimum semua kolom menjadi satu range besar akan melolos
 sku_code,sku_name,sku_active,index,index_enabled,sph_min,sph_max,cyl_min,cyl_max,add_min,add_max,supplier,LensCode,base_curve,diameter
 ```
 
-Satu baris menunjuk satu blank fisik untuk satu SKU dan indeks. Ulangi baris untuk menambahkan blank atau supplier. `sku_code`, nama, dan status harus konsisten; setiap kombinasi SKU/indeks harus memakai status indeks dan range finish yang sama. Supplier, LensCode, BC, dan diameter harus menunjuk blank nyata di master, dengan indeks bahan yang sesuai. CT/ET diambil dari master blank.
+Satu baris menunjuk satu blank fisik untuk satu SKU dan indeks. Ulangi baris untuk menambahkan blank atau supplier. `sku_code`, nama, dan status harus konsisten; status indeks pada kombinasi SKU/indeks yang sama juga harus konsisten. **Range finish boleh berbeda untuk masing-masing diameter**, misalnya Ø65 dengan SPH -4..+6 dan Ø70 dengan SPH -8..+2. Diameter, SPH, CYL, dan ADD diperiksa bersamaan pada satu baris; rentang antarbaris tidak digabung menjadi batas minimum/maksimum global. Supplier, LensCode, BC, dan diameter harus menunjuk blank nyata di master, dengan indeks bahan yang sesuai. CT/ET diambil dari master blank.
 
 Kode SKU dicocokkan tanpa membedakan huruf besar/kecil. SKU yang sudah cocok mempertahankan identitasnya. Impor memperbarui **seluruh konfigurasi indeks dan assignment SKU yang tercantum**, sehingga semua indeks/blank yang tetap diizinkan harus disertakan. SKU lain tetap tersimpan. Kode yang pernah dipakai lalu diubah tidak menyebabkan SKU lama tertimpa ketika kode tersebut digunakan kembali.
 

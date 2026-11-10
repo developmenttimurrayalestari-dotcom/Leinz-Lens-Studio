@@ -94,7 +94,7 @@ function rebuildMasterMaps(){
     }
     $('#view-reference h1').textContent='Lembar acuan tinting';
     masterManager=new LeinzMasterManager({root:$('#master-manager-root'),catalogs:data,mode:storage.mode,
-      saveCatalogs:value=>storage.saveCatalogs(value),getSkus:()=>skuManager.getSkus({includeInactive:true}),
+      saveCatalogs:(value,options)=>storage.saveCatalogs(value,options),getDocuments:()=>[state,saved],getSkus:()=>skuManager.getSkus({includeInactive:true}),
       onChange:value=>applyCatalogs(value,{syncManager:false}),onNotify:toast,
       onNavigate:target=>{if(showManage(target==='reference'?'tints':'materials',target))setTab('manage');}});
     showManage('materials');
@@ -198,7 +198,7 @@ function rebuildMasterMaps(){
     for(const key of ['a','b']){const slot=state[key];evaluations[key]=BlankEngine.evaluate({materials:data.materials,index:slot.index,productId:slot.productId,skuVariant:skuVariantFor(key),rx:state,frame:frameFit});for(const eye of ['R','L']){const id=slot['blankId'+eye];if(id&&!evaluations[key].rows.some(r=>r.blank.id===id&&r['eligible'+eye])){slot['blankId'+eye]=null;removed.push(key.toUpperCase()+'/'+eye);}}}
     if(removed.length)toast('Pilihan blank '+removed.join(', ')+' dilepas karena tidak lagi memenuhi frame, power, atau aturan SKU.');
   }
-  function rangeText(v){if(!v?.power)return 'Belum ada batas power finish SKU.';const p=v.power;return 'SPH '+fmt(p.sphMin)+' s/d '+fmt(p.sphMax)+' · CYL '+fmt(p.cylMin)+' s/d '+fmt(p.cylMax)+' · ADD '+fmt(p.addMin)+' s/d '+fmt(p.addMax);}
+  function rangeText(v){if(Array.isArray(v?.powerRanges))return v.powerRanges.map(r=>'Ø '+fmt(r.diameter)+' mm: SPH '+fmt(r.sphMin)+' s/d '+fmt(r.sphMax)+' · CYL '+fmt(r.cylMin)+' s/d '+fmt(r.cylMax)+' · ADD '+fmt(r.addMin)+' s/d '+fmt(r.addMax)).join(' | ')||'Belum ada range diameter.';if(!v?.power)return 'Belum ada batas power finish SKU.';const p=v.power;return 'SPH '+fmt(p.sphMin)+' s/d '+fmt(p.sphMax)+' · CYL '+fmt(p.cylMin)+' s/d '+fmt(p.cylMax)+' · ADD '+fmt(p.addMin)+' s/d '+fmt(p.addMax)+(p.diameterMin!=null&&p.diameterMax!=null?' · Diameter '+fmt(p.diameterMin)+' s/d '+fmt(p.diameterMax)+' mm':'');}
   function skuProblem(key=state.active){const slot=state[key],sku=selectedSku(key);if(!slot.skuId)return '';if(!sku)return 'SKU tersimpan tidak ditemukan. Pilih SKU aktif atau buka Master SKU.';if(!sku.active)return 'SKU diarsipkan. Aktifkan kembali atau pilih SKU lain.';if(!sku.variants.some(v=>v.index===slot.index&&v.enabled))return 'Indeks ini tidak lagi aktif pada SKU. Pilih indeks yang tersedia.';return '';}
   function indexOptions(key){const allowed=indicesFor(key),current=state[key].index;return (!allowed.includes(current)?'<option value="'+esc(current)+'" selected disabled>'+esc(current)+' · tidak tersedia</option>':'')+allowed.map(n=>'<option value="'+n+'" '+(n===current?'selected':'')+'>'+n+'</option>').join('');}
   function materialLabel(product){
@@ -608,7 +608,7 @@ function rebuildMasterMaps(){
       if(!catalogCheck.ok)throw Error(catalogCheck.errors.slice(0,3).join(' '));
       rebuildMasterMaps();
       if(typeof SkuManager!=='function'||typeof BlankEngine!=='object')throw Error('Modul perencanaan SKU atau blank belum dapat dibaca.');
-      skuManager=new SkuManager({container:$('#sku-admin'),materials:data.materials,indices:INDICES,storage,storageMode:storage.mode,onChange:()=>{if(state&&viewers.a)renderAll();},onNotify:toast});
+      skuManager=new SkuManager({container:$('#sku-admin'),materials:data.materials,indices:INDICES,storage,storageMode:storage.mode,getDocuments:()=>[state,saved],onChange:()=>{if(state&&viewers.a)renderAll();},onNotify:toast});
       state=normalizeState(readStorage(STATE_KEY,freshState()));saved=readHistory();
       mountManage();
       if(storage.mode==='mysql'){$('#save-local').textContent='Simpan ke MySQL';$('#saved-scope').textContent='RIWAYAT AKUN INI';$('#saved-storage-note').textContent='Tersimpan di server MySQL untuk akun ini. Unduh JSON untuk cadangan atau pemindahan konsultasi.';}

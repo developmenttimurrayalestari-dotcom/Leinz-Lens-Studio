@@ -11,7 +11,7 @@
   const TEMPLATE_NAMES = {materials:'blank',shapes:'frame-shape',tints:'tinting',skus:'sku'};
   const LABELS = {materials:'Blank / raw material',shapes:'Frame shape',tints:'Tinting',skus:'SKU produk finish'};
   const POWER = ['sphFrom','sphTo','cylFrom','cylTo','addFrom','addTo'];
-  const INDICES = ['1.50','1.56','1.57','1.59','1.60','1.67','1.74'];
+  const INDICES = ['1.50','1.56','1.57','1.59','1.60','1.61','1.67','1.74'];
   const clone = value => JSON.parse(JSON.stringify(value));
   const stable = value => JSON.stringify(value,(_,v)=>v&&typeof v==='object'&&!Array.isArray(v)?Object.fromEntries(Object.keys(v).sort().map(k=>[k,v[k]])):v);
   const blank = value => value===null||value===undefined||(typeof value==='string'&&!value.trim());
@@ -263,7 +263,7 @@
       if(!index||!INDICES.includes(index))fail('Indeks produk baru tidak jelas. Tambahkan kolom index atau satu indeks yang valid pada Descr.',row,'Descr');
       if(old&&old.index!==index)fail('Indeks berbeda dari produk yang sudah ada. Gunakan LensCode baru atau perbaiki berkas.',row,'index');
       if(described.length>1||described.length===1&&described[0]!==index)fail('Indeks pada Descr bertentangan atau ambigu terhadap index/produk yang dikenal.',row,'Descr');
-      const p=old?updatedRecord(old,{name},now):{id:newId(supplier+':'+code,'material',key,ids,p=>p.supplier===supplier&&p.code===code),supplier,code,name,index,activeForSimulator:index!=='1.59',active:true,source:'tabular-import',managedAt:now};
+      const p=old?updatedRecord(old,{name},now):{id:newId(supplier+':'+code,'material',key,ids,p=>p.supplier===supplier&&p.code===code),supplier,code,name,index,activeForSimulator:!['1.59','1.61'].includes(index),active:true,source:'tabular-import',managedAt:now};
       const priorProduct=seenProducts.get(key);
       if(priorProduct&&(priorProduct.product.name!==name||priorProduct.product.index!==index))fail('Deskripsi/indeks tidak konsisten dengan baris '+priorProduct.row.row+' untuk supplier + LensCode yang sama.',row,'Descr');
       const baseCurve=numberCell(row,'base_curve',0,30),diameter=numberCell(row,'diameter',20,150),ct=numberCell(row,'center_thickness',.1,50),et=numberCell(row,'edge_thickness',.1,50);
@@ -380,12 +380,17 @@
       const code=stringCell(row,'sku_code',64),key=code.toLocaleUpperCase('en-US'),name=stringCell(row,'sku_name',140),active=boolCell(row,'sku_active'),index=indexCell(row),enabled=boolCell(row,'index_enabled');
       if(index==='1.59')fail('Indeks 1.59 hanya berada pada katalog bahan dan tidak dapat dipakai SKU simulator.',row,'index');
       const power=powerRow(row,['min','max'],!enabled),old=existing.find(s=>s.code.toLocaleUpperCase('en-US')===key);
+      // Legacy CSV/Excel templates have no SKU diameter-range columns. Retain
+      // bounds set in the form when updating that SKU/index through a template.
+      const oldPower=old?.variants.find(v=>v.index===index)?.power;
+      for(const field of ['diameterMin','diameterMax'])if(oldPower?.[field]!==undefined)power[field]=oldPower[field];
       let item=seen.get(key);
       if(item&&(item.sku.name!==name||item.sku.active!==active||item.sku.code!==code))fail('Kode, nama, atau status SKU bertentangan dengan baris '+item.row.row+'.',row,'sku_code');
       if(!item)item={row,sku:{id:old?.id||freshSkuId(key),code,name,active,variants:[],createdAt:old?.createdAt||now,updatedAt:old?.updatedAt||now},variants:new Map(),old};
       let variant=item.variants.get(index);
-      if(variant&&(variant.value.enabled!==enabled||stable(variant.value.power)!==stable(power)))fail('Status/range finish harus sama pada semua baris SKU dan indeks yang sama (lihat baris '+variant.row.row+').',row,'index');
-      if(!variant)variant={row,value:{index,enabled,power,assignments:[]},assignments:new Map()};
+      if(variant&&variant.value.enabled!==enabled)fail('Status indeks harus sama pada semua baris SKU dan indeks yang sama (lihat baris '+variant.row.row+').',row,'index');
+      if(!variant)variant={row,value:{index,enabled,power,assignments:[]},assignments:new Map(),ranges:[],useRanges:Array.isArray(old?.variants.find(v=>v.index===index)?.powerRanges)};
+      if(stable(variant.value.power)!==stable(power))variant.useRanges=true;
       const fields=['supplier','LensCode','base_curve','diameter'],empty=fields.filter(k=>blank(row.values[k]));
       if(empty.length===fields.length){
         if(enabled)fail('Indeks aktif memerlukan supplier, LensCode, base_curve, dan diameter.',row,'supplier');
@@ -393,6 +398,8 @@
       }else{
         if(empty.length)fail('Assignment blank belum lengkap: '+empty.join(', ')+'.',row,'supplier');
         const supplier=stringCell(row,'supplier',80),lensCode=stringCell(row,'LensCode',80),baseCurve=numberCell(row,'base_curve',0,30),diameter=numberCell(row,'diameter',20,150);
+        const range={diameter,...Object.fromEntries(['sphMin','sphMax','cylMin','cylMax','addMin','addMax'].map(k=>[k,power[k]]))};
+        if(!variant.ranges.some(r=>stable(r)===stable(range)))variant.ranges.push(range);
         const matches=productLookup.get(productKey(supplier,lensCode))||[],p=matches[0];
         if(matches.length!==1)fail(matches.length?'Produk bahan ambigu; perbaiki duplikasi master.':'Supplier dan LensCode tidak ditemukan. Impor bahan terlebih dahulu.',row,'LensCode');
         if(p.index!==index||!p.activeForSimulator)fail('Indeks bahan berbeda dari indeks SKU atau bahan tidak tersedia pada simulator.',row,'index');
@@ -407,7 +414,11 @@
       item.variants.set(index,variant);seen.set(key,item);
     });
     issues.finish();
-    const skus=[...seen.values()].map(item=>({...item.sku,variants:[...item.variants.values()].map(v=>({...v.value,assignments:[...v.assignments.values()].map(a=>({...a,blankIds:a.blankIds.sort()})).sort((a,b)=>a.productId.localeCompare(b.productId))})).sort((a,b)=>a.index.localeCompare(b.index))}));
+    const skus=[...seen.values()].map(item=>({...item.sku,variants:[...item.variants.values()].map(v=>{
+      const value={...v.value,assignments:[...v.assignments.values()].map(a=>({...a,blankIds:a.blankIds.sort()})).sort((a,b)=>a.productId.localeCompare(b.productId))};
+      if(v.useRanges){value.powerRanges=v.ranges;delete value.power;}
+      return value;
+    }).sort((a,b)=>a.index.localeCompare(b.index))}));
     const payload={schema:'trl-sku-catalog/1.0',skus};
     const check=skuModel().validateCatalog(payload,{materials});
     if(!check.ok)throw new ImportError(check.errors.map(message=>({message})));

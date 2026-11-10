@@ -1,0 +1,449 @@
+-- Additive MySQL 5.7.24 schema. Run npm run db:migrate for verified backfill.
+
+-- Version 3 is recorded by the backfill, never by DDL alone.
+
+CREATE TABLE IF NOT EXISTS leinz_rel_documents (document_id VARCHAR(180) CHARACTER SET ascii COLLATE ascii_bin NOT NULL PRIMARY KEY, scope VARCHAR(16) CHARACTER SET ascii NOT NULL, document_key VARCHAR(16) CHARACTER SET ascii NOT NULL, user_id INT UNSIGNED NULL, root_type VARCHAR(48) CHARACTER SET ascii NOT NULL, is_null TINYINT UNSIGNED NOT NULL, migrated_sha256 CHAR(64) CHARACTER SET ascii NULL, migrated_at DATETIME NULL, FOREIGN KEY (user_id) REFERENCES leinz_users(id) ON DELETE CASCADE) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS leinz_rel_entities (document_id VARCHAR(180) CHARACTER SET ascii COLLATE ascii_bin NOT NULL, node_id CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL, parent_id CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NULL, relation_name VARCHAR(64) CHARACTER SET ascii NOT NULL, ordinal INT UNSIGNED NOT NULL, entity_type VARCHAR(48) CHARACTER SET ascii NOT NULL, field_mask VARCHAR(255) CHARACTER SET ascii NOT NULL, child_mask VARCHAR(255) CHARACTER SET ascii NOT NULL, PRIMARY KEY(document_id,node_id), KEY ix_rel_parent(document_id,parent_id,relation_name,ordinal), FOREIGN KEY(document_id) REFERENCES leinz_rel_documents(document_id) ON DELETE CASCADE, FOREIGN KEY(document_id,parent_id) REFERENCES leinz_rel_entities(document_id,node_id) ON DELETE CASCADE) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS leinz_rel_values (document_id VARCHAR(180) CHARACTER SET ascii COLLATE ascii_bin NOT NULL, node_id CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL, value_id INT UNSIGNED NOT NULL, parent_value_id INT UNSIGNED NULL, member_name LONGTEXT NOT NULL, ordinal INT UNSIGNED NOT NULL, value_kind ENUM('null','array','object','string','number','boolean') NOT NULL, string_value LONGTEXT NULL, number_value DOUBLE NULL, boolean_value TINYINT UNSIGNED NULL, PRIMARY KEY(document_id,node_id,value_id), FOREIGN KEY(document_id,node_id) REFERENCES leinz_rel_entities(document_id,node_id) ON DELETE CASCADE) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS leinz_rel_materials (
+  document_id VARCHAR(180) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  node_id CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  `schema_version` DOUBLE NULL,
+  PRIMARY KEY(document_id,node_id),
+  FOREIGN KEY(document_id,node_id) REFERENCES leinz_rel_entities(document_id,node_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS leinz_rel_products (
+  document_id VARCHAR(180) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  node_id CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  `id` VARCHAR(128) CHARACTER SET ascii COLLATE ascii_bin NULL,
+  `supplier` VARCHAR(80) NULL,
+  `code` VARCHAR(80) NULL,
+  `name` VARCHAR(200) NULL,
+  `index` VARCHAR(8) NULL,
+  `active_for_simulator` TINYINT UNSIGNED NULL,
+  `active` TINYINT UNSIGNED NULL,
+  PRIMARY KEY(document_id,node_id),
+  FOREIGN KEY(document_id,node_id) REFERENCES leinz_rel_entities(document_id,node_id) ON DELETE CASCADE,
+  UNIQUE KEY uq_rel_product (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS leinz_rel_blanks (
+  document_id VARCHAR(180) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  node_id CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  `id` VARCHAR(128) CHARACTER SET ascii COLLATE ascii_bin NULL,
+  `product_id` VARCHAR(128) CHARACTER SET ascii COLLATE ascii_bin NULL,
+  `base_curve` DOUBLE NULL,
+  `diameter` DOUBLE NULL,
+  `ct` DOUBLE NULL,
+  `et` DOUBLE NULL,
+  `active` TINYINT UNSIGNED NULL,
+  PRIMARY KEY(document_id,node_id),
+  FOREIGN KEY(document_id,node_id) REFERENCES leinz_rel_entities(document_id,node_id) ON DELETE CASCADE,
+  UNIQUE KEY uq_rel_blank (id),
+  FOREIGN KEY (product_id) REFERENCES leinz_rel_products(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS leinz_rel_power_rules (
+  document_id VARCHAR(180) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  node_id CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  `id` VARCHAR(128) CHARACTER SET ascii COLLATE ascii_bin NULL,
+  `blank_id` VARCHAR(128) CHARACTER SET ascii COLLATE ascii_bin NULL,
+  `sph_from` DOUBLE NULL,
+  `sph_to` DOUBLE NULL,
+  `cyl_from` DOUBLE NULL,
+  `cyl_to` DOUBLE NULL,
+  `add_from` DOUBLE NULL,
+  `add_to` DOUBLE NULL,
+  `exact_duplicate_count` DOUBLE NULL,
+  `has_exact_duplicates` TINYINT UNSIGNED NULL,
+  `active` TINYINT UNSIGNED NULL,
+  PRIMARY KEY(document_id,node_id),
+  FOREIGN KEY(document_id,node_id) REFERENCES leinz_rel_entities(document_id,node_id) ON DELETE CASCADE,
+  UNIQUE KEY uq_rel_rule (id),
+  FOREIGN KEY (blank_id) REFERENCES leinz_rel_blanks(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS leinz_rel_source_rows (
+  document_id VARCHAR(180) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  node_id CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  `value` DOUBLE NULL,
+  PRIMARY KEY(document_id,node_id),
+  FOREIGN KEY(document_id,node_id) REFERENCES leinz_rel_entities(document_id,node_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS leinz_rel_shapes (
+  document_id VARCHAR(180) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  node_id CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  `schema_version` DOUBLE NULL,
+  `coordinate_system` LONGTEXT NULL,
+  `note` LONGTEXT NULL,
+  PRIMARY KEY(document_id,node_id),
+  FOREIGN KEY(document_id,node_id) REFERENCES leinz_rel_entities(document_id,node_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS leinz_rel_frame_shapes (
+  document_id VARCHAR(180) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  node_id CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  `code` VARCHAR(128) CHARACTER SET ascii COLLATE ascii_bin NULL,
+  `name` VARCHAR(140) NULL,
+  `short_name` VARCHAR(60) NULL,
+  `description` VARCHAR(1000) NULL,
+  `default_width_mm` DOUBLE NULL,
+  `default_height_mm` DOUBLE NULL,
+  `reference_aspect_ratio` DOUBLE NULL,
+  `source_aspect_ratio` DOUBLE NULL,
+  `geometry_revision` VARCHAR(64) NULL,
+  `contour_mode` VARCHAR(16) NULL,
+  `source` VARCHAR(64) NULL,
+  `status` VARCHAR(64) NULL,
+  `source_file` LONGTEXT NULL,
+  `source_sha256` VARCHAR(64) NULL,
+  `source_path_index` DOUBLE NULL,
+  `source_subpath_index` DOUBLE NULL,
+  `source_index_base` DOUBLE NULL,
+  `source_contour` LONGTEXT NULL,
+  `source_side` VARCHAR(32) NULL,
+  `canonical_eye` VARCHAR(8) NULL,
+  `source_path_data` LONGTEXT NULL,
+  `category` VARCHAR(64) NULL,
+  `synthetic` TINYINT UNSIGNED NULL,
+  `active` TINYINT UNSIGNED NULL,
+  PRIMARY KEY(document_id,node_id),
+  FOREIGN KEY(document_id,node_id) REFERENCES leinz_rel_entities(document_id,node_id) ON DELETE CASCADE,
+  UNIQUE KEY uq_rel_shape (code)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS leinz_rel_shape_points (
+  document_id VARCHAR(180) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  node_id CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  `x` DOUBLE NULL,
+  `y` DOUBLE NULL,
+  PRIMARY KEY(document_id,node_id),
+  FOREIGN KEY(document_id,node_id) REFERENCES leinz_rel_entities(document_id,node_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS leinz_rel_shape_aliases (
+  document_id VARCHAR(180) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  node_id CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  `value` LONGTEXT NULL,
+  PRIMARY KEY(document_id,node_id),
+  FOREIGN KEY(document_id,node_id) REFERENCES leinz_rel_entities(document_id,node_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS leinz_rel_tints (
+  document_id VARCHAR(180) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  node_id CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  `schema_version` DOUBLE NULL,
+  PRIMARY KEY(document_id,node_id),
+  FOREIGN KEY(document_id,node_id) REFERENCES leinz_rel_entities(document_id,node_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS leinz_rel_tint_items (
+  document_id VARCHAR(180) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  node_id CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  `code` VARCHAR(128) CHARACTER SET ascii COLLATE ascii_bin NULL,
+  `name` VARCHAR(160) NULL,
+  `kind` VARCHAR(16) NULL,
+  `family` VARCHAR(64) NULL,
+  `group` VARCHAR(32) NULL,
+  `nominal_percent` DOUBLE NULL,
+  `preview_hex` VARCHAR(7) NULL,
+  `preview_mid_hex` VARCHAR(7) NULL,
+  `preview_bottom_hex` VARCHAR(7) NULL,
+  `source_page` DOUBLE NULL,
+  `reference_status` VARCHAR(64) NULL,
+  `reference_note` VARCHAR(2000) NULL,
+  `source_row` DOUBLE NULL,
+  `source_image` LONGTEXT NULL,
+  `chart_name` LONGTEXT NULL,
+  `chart_nominal_percent` DOUBLE NULL,
+  `chart_kind` VARCHAR(32) NULL,
+  `chart_group` VARCHAR(32) NULL,
+  `chart_top_hex` VARCHAR(7) NULL,
+  `chart_mid_hex` VARCHAR(7) NULL,
+  `chart_bottom_hex` VARCHAR(7) NULL,
+  `mapping_method` LONGTEXT NULL,
+  `preview_calibrated` TINYINT UNSIGNED NULL,
+  `requires_physical_sample` TINYINT UNSIGNED NULL,
+  `active` TINYINT UNSIGNED NULL,
+  PRIMARY KEY(document_id,node_id),
+  FOREIGN KEY(document_id,node_id) REFERENCES leinz_rel_entities(document_id,node_id) ON DELETE CASCADE,
+  UNIQUE KEY uq_rel_tint (code)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS leinz_rel_swatches (
+  document_id VARCHAR(180) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  node_id CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  `number` DOUBLE NULL,
+  `name` LONGTEXT NULL,
+  `kind` VARCHAR(32) NULL,
+  `group` VARCHAR(32) NULL,
+  `nominal_percent` DOUBLE NULL,
+  `source_page` DOUBLE NULL,
+  `source_image` LONGTEXT NULL,
+  `top_hex` VARCHAR(7) NULL,
+  `mid_hex` VARCHAR(7) NULL,
+  `bottom_hex` VARCHAR(7) NULL,
+  PRIMARY KEY(document_id,node_id),
+  FOREIGN KEY(document_id,node_id) REFERENCES leinz_rel_entities(document_id,node_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS leinz_rel_skus (
+  document_id VARCHAR(180) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  node_id CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  `schema` VARCHAR(64) NULL,
+  `updated_at` VARCHAR(40) NULL,
+  `source_file` LONGTEXT NULL,
+  `source_sha256` VARCHAR(64) NULL,
+  `availability_meaning` LONGTEXT NULL,
+  PRIMARY KEY(document_id,node_id),
+  FOREIGN KEY(document_id,node_id) REFERENCES leinz_rel_entities(document_id,node_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS leinz_rel_sku_items (
+  document_id VARCHAR(180) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  node_id CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  `id` VARCHAR(128) CHARACTER SET ascii COLLATE ascii_bin NULL,
+  `code` VARCHAR(64) NULL,
+  `name` VARCHAR(140) NULL,
+  `active` TINYINT UNSIGNED NULL,
+  `created_at` LONGTEXT NULL,
+  `updated_at` LONGTEXT NULL,
+  PRIMARY KEY(document_id,node_id),
+  FOREIGN KEY(document_id,node_id) REFERENCES leinz_rel_entities(document_id,node_id) ON DELETE CASCADE,
+  UNIQUE KEY uq_rel_sku (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS leinz_rel_sku_variants (
+  document_id VARCHAR(180) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  node_id CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  `index` VARCHAR(8) NULL,
+  `enabled` TINYINT UNSIGNED NULL,
+  PRIMARY KEY(document_id,node_id),
+  FOREIGN KEY(document_id,node_id) REFERENCES leinz_rel_entities(document_id,node_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS leinz_rel_sku_power (
+  document_id VARCHAR(180) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  node_id CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  `sph_min` DOUBLE NULL,
+  `sph_max` DOUBLE NULL,
+  `cyl_min` DOUBLE NULL,
+  `cyl_max` DOUBLE NULL,
+  `add_min` DOUBLE NULL,
+  `add_max` DOUBLE NULL,
+  PRIMARY KEY(document_id,node_id),
+  FOREIGN KEY(document_id,node_id) REFERENCES leinz_rel_entities(document_id,node_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS leinz_rel_sku_assignments (
+  document_id VARCHAR(180) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  node_id CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  `id` VARCHAR(128) CHARACTER SET ascii COLLATE ascii_bin NULL,
+  `supplier` VARCHAR(80) NULL,
+  `product_id` VARCHAR(128) CHARACTER SET ascii COLLATE ascii_bin NULL,
+  PRIMARY KEY(document_id,node_id),
+  FOREIGN KEY(document_id,node_id) REFERENCES leinz_rel_entities(document_id,node_id) ON DELETE CASCADE,
+  FOREIGN KEY (product_id) REFERENCES leinz_rel_products(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS leinz_rel_sku_blanks (
+  document_id VARCHAR(180) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  node_id CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  `value` VARCHAR(128) CHARACTER SET ascii COLLATE ascii_bin NULL,
+  PRIMARY KEY(document_id,node_id),
+  FOREIGN KEY(document_id,node_id) REFERENCES leinz_rel_entities(document_id,node_id) ON DELETE CASCADE,
+  FOREIGN KEY (value) REFERENCES leinz_rel_blanks(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS leinz_rel_history (
+  document_id VARCHAR(180) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  node_id CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  PRIMARY KEY(document_id,node_id),
+  FOREIGN KEY(document_id,node_id) REFERENCES leinz_rel_entities(document_id,node_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS leinz_rel_consultations (
+  document_id VARCHAR(180) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  node_id CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  `id` VARCHAR(128) CHARACTER SET ascii COLLATE ascii_bin NULL,
+  `title` VARCHAR(100) NULL,
+  `created_at` VARCHAR(40) NULL,
+  PRIMARY KEY(document_id,node_id),
+  FOREIGN KEY(document_id,node_id) REFERENCES leinz_rel_entities(document_id,node_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS leinz_rel_states (
+  document_id VARCHAR(180) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  node_id CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  `active` VARCHAR(1) NULL,
+  `shape` VARCHAR(128) CHARACTER SET ascii COLLATE ascii_bin NULL,
+  `shape_revision` VARCHAR(64) NULL,
+  `width` DOUBLE NULL,
+  `height` DOUBLE NULL,
+  `dbl` DOUBLE NULL,
+  `sph` DOUBLE NULL,
+  `cyl` DOUBLE NULL,
+  `axis` DOUBLE NULL,
+  `add` DOUBLE NULL,
+  `pd_r` DOUBLE NULL,
+  `pd_l` DOUBLE NULL,
+  `height_r` DOUBLE NULL,
+  `height_l` DOUBLE NULL,
+  `allowance_diameter` DOUBLE NULL,
+  `pd` DOUBLE NULL,
+  `fitting_height` DOUBLE NULL,
+  `sync` TINYINT UNSIGNED NULL,
+  `show_frame` TINYINT UNSIGNED NULL,
+  `show_temples` TINYINT UNSIGNED NULL,
+  `frame_style` VARCHAR(16) NULL,
+  `uv_exposure` DOUBLE NULL,
+  PRIMARY KEY(document_id,node_id),
+  FOREIGN KEY(document_id,node_id) REFERENCES leinz_rel_entities(document_id,node_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS leinz_rel_choices (
+  document_id VARCHAR(180) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  node_id CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  `index` VARCHAR(8) NULL,
+  `product_id` VARCHAR(128) CHARACTER SET ascii COLLATE ascii_bin NULL,
+  `sku_id` VARCHAR(128) CHARACTER SET ascii COLLATE ascii_bin NULL,
+  `blank_id_r` VARCHAR(128) CHARACTER SET ascii COLLATE ascii_bin NULL,
+  `blank_id_l` VARCHAR(128) CHARACTER SET ascii COLLATE ascii_bin NULL,
+  `tint_code` VARCHAR(128) CHARACTER SET ascii COLLATE ascii_bin NULL,
+  `note` VARCHAR(800) NULL,
+  `custom_color` VARCHAR(7) NULL,
+  `photochromic` TINYINT UNSIGNED NULL,
+  PRIMARY KEY(document_id,node_id),
+  FOREIGN KEY(document_id,node_id) REFERENCES leinz_rel_entities(document_id,node_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS leinz_rel_cameras (
+  document_id VARCHAR(180) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  node_id CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  `yaw` DOUBLE NULL,
+  `pitch` DOUBLE NULL,
+  `zoom` DOUBLE NULL,
+  PRIMARY KEY(document_id,node_id),
+  FOREIGN KEY(document_id,node_id) REFERENCES leinz_rel_entities(document_id,node_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS leinz_rel_optics (
+  document_id VARCHAR(180) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  node_id CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  `use_override` TINYINT UNSIGNED NULL,
+  PRIMARY KEY(document_id,node_id),
+  FOREIGN KEY(document_id,node_id) REFERENCES leinz_rel_entities(document_id,node_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS leinz_rel_optical_profiles (
+  document_id VARCHAR(180) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  node_id CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  `min_center_mm` DOUBLE NULL,
+  `min_edge_mm` DOUBLE NULL,
+  `front_power_d` DOUBLE NULL,
+  `front_radius_mm` DOUBLE NULL,
+  `front_curve_basis` VARCHAR(32) NULL,
+  `curve_reference_index` DOUBLE NULL,
+  `front_conic` DOUBLE NULL,
+  `back_conic` DOUBLE NULL,
+  `source` VARCHAR(16) NULL,
+  `reference` VARCHAR(500) NULL,
+  PRIMARY KEY(document_id,node_id),
+  FOREIGN KEY(document_id,node_id) REFERENCES leinz_rel_entities(document_id,node_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS leinz_rel_snapshots (
+  document_id VARCHAR(180) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  node_id CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  `schema` VARCHAR(64) NULL,
+  `application_version` VARCHAR(32) NULL,
+  `storage_mode` VARCHAR(16) NULL,
+  `title` LONGTEXT NULL,
+  `created_at` LONGTEXT NULL,
+  `status` LONGTEXT NULL,
+  `production_ready` TINYINT UNSIGNED NULL,
+  `lensware_connected` TINYINT UNSIGNED NULL,
+  PRIMARY KEY(document_id,node_id),
+  FOREIGN KEY(document_id,node_id) REFERENCES leinz_rel_entities(document_id,node_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS leinz_rel_snapshot_choices (
+  document_id VARCHAR(180) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  node_id CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  `choice` VARCHAR(1) NULL,
+  `index` VARCHAR(8) NULL,
+  PRIMARY KEY(document_id,node_id),
+  FOREIGN KEY(document_id,node_id) REFERENCES leinz_rel_entities(document_id,node_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS leinz_rel_snapshot_frames (
+  document_id VARCHAR(180) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  node_id CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  `shape_code` VARCHAR(128) CHARACTER SET ascii COLLATE ascii_bin NULL,
+  `shape_name` LONGTEXT NULL,
+  `shape_source` LONGTEXT NULL,
+  `a` DOUBLE NULL,
+  `b` DOUBLE NULL,
+  `dbl` DOUBLE NULL,
+  `allowance_diameter` DOUBLE NULL,
+  `unit` VARCHAR(8) NULL,
+  PRIMARY KEY(document_id,node_id),
+  FOREIGN KEY(document_id,node_id) REFERENCES leinz_rel_entities(document_id,node_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS leinz_rel_prescriptions (
+  document_id VARCHAR(180) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  node_id CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  `sph` DOUBLE NULL,
+  `cyl` DOUBLE NULL,
+  `axis` DOUBLE NULL,
+  `add` DOUBLE NULL,
+  `scope` LONGTEXT NULL,
+  PRIMARY KEY(document_id,node_id),
+  FOREIGN KEY(document_id,node_id) REFERENCES leinz_rel_entities(document_id,node_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS leinz_rel_previews (
+  document_id VARCHAR(180) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  node_id CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  `uv_exposure` DOUBLE NULL,
+  `comparison_unit` LONGTEXT NULL,
+  `display_convention` LONGTEXT NULL,
+  `index_scope` LONGTEXT NULL,
+  `eye_mode` LONGTEXT NULL,
+  `rotation_mode` LONGTEXT NULL,
+  `camera_synchronized` TINYINT UNSIGNED NULL,
+  `same_tint` TINYINT UNSIGNED NULL,
+  `geometry` LONGTEXT NULL,
+  `production_calibration` LONGTEXT NULL,
+  PRIMARY KEY(document_id,node_id),
+  FOREIGN KEY(document_id,node_id) REFERENCES leinz_rel_entities(document_id,node_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS leinz_rel_frame_displays (
+  document_id VARCHAR(180) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  node_id CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  `visible` TINYINT UNSIGNED NULL,
+  `style` VARCHAR(16) NULL,
+  `style_name` LONGTEXT NULL,
+  `temples_visible` TINYINT UNSIGNED NULL,
+  `temples_enabled` TINYINT UNSIGNED NULL,
+  `illustrative` TINYINT UNSIGNED NULL,
+  PRIMARY KEY(document_id,node_id),
+  FOREIGN KEY(document_id,node_id) REFERENCES leinz_rel_entities(document_id,node_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS leinz_rel_appearances (
+  document_id VARCHAR(180) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  node_id CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  `enabled` TINYINT UNSIGNED NULL,
+  `uv_exposure` DOUBLE NULL,
+  `mode` LONGTEXT NULL,
+  PRIMARY KEY(document_id,node_id),
+  FOREIGN KEY(document_id,node_id) REFERENCES leinz_rel_entities(document_id,node_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

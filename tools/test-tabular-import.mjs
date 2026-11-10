@@ -262,6 +262,18 @@ test('SKU template resolves physical blanks and repeated import preserves SKU an
   assert.equal(merged.changes.length,0);assert.equal(merged.unchanged.length,1);assert.deepEqual(merged.skus,first.skus);
 });
 
+test('CSV and Excel template updates retain SKU diameter limits configured in the form',()=>{
+  const data=parsed('skus',skuRows),initial=imports.buildSkuImport([],source.materials,data,{now});
+  const existing=planImport([],initial.payload,{materials:source.materials,now}).skus;
+  Object.assign(existing[0].variants[0].power,{diameterMin:65,diameterMax:75});
+  const prepared=imports.buildSkuImport(existing,source.materials,data,{now});
+  const result=planImport(existing,prepared.payload,{materials:source.materials,now});
+  assert.equal(result.ok,true);
+  assert.equal(result.skus[0].variants[0].power.diameterMin,65);
+  assert.equal(result.skus[0].variants[0].power.diameterMax,75);
+  assert.equal(result.changes.length,0);
+});
+
 test('SKU multi-index multi-supplier rows aggregate complete assignments without fabricating blank coverage',()=>{
   const soa=source.materials.blanks.find(b=>b.productId==='SOA:SPHW60'),high=source.materials.blanks.find(b=>b.productId==='DMO:SPHW74');
   const rows=[{...skuRows[0],sku_active:true},{...skuRows[0],sku_active:true,supplier:'SOA',LensCode:'SPHW60',base_curve:soa.baseCurve,diameter:soa.diameter},{...skuRows[0],sku_active:true,index:1.74,supplier:'DMO',LensCode:'SPHW74',base_curve:high.baseCurve,diameter:high.diameter}];
@@ -271,10 +283,28 @@ test('SKU multi-index multi-supplier rows aggregate complete assignments without
   const dupe=imports.buildSkuImport([],source.materials,parsed('skus',[rows[0],rows[0]]),{now});assert.equal(dupe.info.duplicateRows,1);assert.equal(dupe.payload.skus[0].variants[0].assignments[0].blankIds.length,1);
 });
 
-test('SKU import rejects ambiguous power ranges, unavailable indices and mismatched supplier/blank selections atomically',()=>{
+test('SKU import rejects conflicting index status, unavailable indices and mismatched supplier/blank selections atomically',()=>{
   const build=rows=>imports.buildSkuImport([],source.materials,parsed('skus',rows),{now});
-  for(const change of [{sph_min:-12},{index_enabled:false},{sku_name:'Conflicting name'},{sku_active:true}])assert.throws(()=>build([skuRows[0],{...skuRows[0],...change}]),/bertentangan|harus sama/);
+  for(const change of [{index_enabled:false},{sku_name:'Conflicting name'},{sku_active:true}])assert.throws(()=>build([skuRows[0],{...skuRows[0],...change}]),/bertentangan|harus sama/);
   for(const change of [{index:1.59},{supplier:'UNKNOWN'},{LensCode:'MISSING'},{index:1.74},{diameter:80},{diameter:''},{cyl_max:.25}])assert.throws(()=>build([{...skuRows[0],...change}]),imports.ImportError);
+});
+
+test('SKU spreadsheet imports preserve independent ranges per diameter within one index',()=>{
+  const materials=copy(source.materials);
+  const product=source.materials.products.find(p=>p.id==='SOA:SPHW50');
+  const original=materials.blanks.find(b=>b.productId===product.id);
+  const first={...original,id:'qa-diameter-65',diameter:65},second={...original,id:'qa-diameter-70',diameter:70};
+  materials.blanks=materials.blanks.filter(b=>!(b.productId===product.id&&b.baseCurve===original.baseCurve&&[65,70].includes(b.diameter)));
+  materials.blanks.push(first,second);
+  const rows=[{...skuRows[0],index:1.50,supplier:product.supplier,LensCode:product.code,base_curve:first.baseCurve,diameter:65,sph_min:-4,sph_max:6,cyl_min:-3,cyl_max:0,add_min:0,add_max:0},
+    {...skuRows[0],index:1.50,supplier:product.supplier,LensCode:product.code,base_curve:second.baseCurve,diameter:70,sph_min:-8,sph_max:2,cyl_min:-3,cyl_max:0,add_min:0,add_max:0}];
+  const prepared=imports.buildSkuImport([],materials,parsed('skus',rows),{now});
+  const variant=prepared.payload.skus[0].variants[0];
+  assert.deepEqual(variant.powerRanges.map(r=>[r.diameter,r.sphMin,r.sphMax]),[[65,-4,6],[70,-8,2]]);
+  assert(!Object.hasOwn(variant,'power'));
+  const firstPlan=planImport([],prepared.payload,{materials,now});assert.equal(firstPlan.ok,true);
+  const repeat=imports.buildSkuImport(firstPlan.skus,materials,parsed('skus',rows),{now});
+  assert.equal(planImport(firstPlan.skus,repeat.payload,{materials,now}).changes.length,0);
 });
 
 test('disabled SKU indices may retain blank power fields but enabled indices need complete data',()=>{

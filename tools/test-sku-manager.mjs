@@ -73,6 +73,74 @@ test('requires explicit finite finish limits, ordered endpoints, minus CYL, and 
   invalidSku(s => { s.variants[0].power.addMin = -0.25; }, /ADD tidak boleh negatif/);
 });
 
+test('optional SKU diameter limits validate as a pair and survive canonical save', async () => {
+  const input = sku();
+  Object.assign(input.variants[0].power,{diameterMin:'65',diameterMax:'75.5'});
+  const checked = validateSku(input,context);
+  assert.equal(checked.ok,true,checked.errors.join('\n'));
+  assert.equal(checked.sku.variants[0].power.diameterMin,65);
+  assert.equal(checked.sku.variants[0].power.diameterMax,75.5);
+  for (const pair of [[75,65],[19,75],[65,151],[65,''],['',75],[false,75],[65,Infinity]]) {
+    invalidSku(s => Object.assign(s.variants[0].power,{diameterMin:pair[0],diameterMax:pair[1]}),/diameter/);
+  }
+  const fixture = persistenceFixture([sku()]);
+  assert.equal(await fixture.manager._commit([checked.sku]),true);
+  assert.equal(JSON.parse(fixture.getStored()).skus[0].variants[0].power.diameterMax,75.5);
+  const empty = sku(); Object.assign(empty.variants[0].power,{diameterMin:'',diameterMax:''});
+  assert.deepEqual(validateSku(empty,context).sku,sku());
+});
+
+test('variant form renders separate editable power ranges per diameter and supports adding/removing rows', async () => {
+  const boxes = new Map();
+  const manager = Object.create(SkuManager.prototype);
+  manager.draft = sku(); manager.draftIndex = '1.60';
+  manager.draft.variants[0].assignments = [];
+  manager.draft.variants[0].powerRanges = [
+    {diameter:65,sphMin:-4,sphMax:6,cylMin:-3,cylMax:0,addMin:0,addMax:0},
+    {diameter:70,sphMin:-8,sphMax:2,cylMin:-3,cylMax:0,addMin:0,addMax:0}
+  ];
+  delete manager.draft.variants[0].power;
+  manager._q = selector => {if(!boxes.has(selector))boxes.set(selector,{});return boxes.get(selector);};
+  manager._renderVariant();
+  const html = boxes.get('#sku-variant-editor').innerHTML;
+  assert.match(html,/Diameter \(mm\)/);
+  assert(!html.includes('diameterMin'));assert(!html.includes('diameterMax'));
+  for(const [row,value]of [[0,65],[1,70]]) {
+    assert.match(html,new RegExp('<input[^>]+data-sku-range="'+row+'" data-sku-range-field="diameter"[^>]+aria-label="[^"]+indeks 1.60"[^>]+value="'+value+'"'));
+  }
+  manager.container={contains:()=>true,addEventListener:()=>{}};manager._bind();
+  manager._input({target:{dataset:{skuRange:'1',skuRangeField:'sphMin'},value:'-7'}});
+  assert.equal(manager.draft.variants[0].powerRanges[1].sphMin,'-7');
+  const click=dataset=>manager._click({target:{closest:()=>({dataset})}});
+  await click({skuAction:'add-range'});assert.equal(manager.draft.variants[0].powerRanges.length,3);
+  await click({skuAction:'remove-range',rangeRow:'0'});assert.equal(manager.draft.variants[0].powerRanges.length,2);
+  assert.equal(manager.draft.variants[0].powerRanges[0].diameter,70);
+});
+
+test('multiple diameter ranges validate and persist without flattening their independent powers', async () => {
+  const input=sku(),variant=input.variants[0];
+  variant.powerRanges=[{diameter:'65',sphMin:-4,sphMax:6,cylMin:-3,cylMax:'-0.00',addMin:0,addMax:0},{diameter:70,sphMin:-8,sphMax:2,cylMin:-3,cylMax:0,addMin:0,addMax:0}];
+  delete variant.power;
+  const checked=validateSku(input,context);assert.equal(checked.ok,true,checked.errors.join(' '));
+  assert.equal(checked.sku.variants[0].powerRanges[0].diameter,65);
+  assert.equal(checked.sku.variants[0].powerRanges[1].sphMin,-8);
+  assert(!Object.hasOwn(checked.sku.variants[0],'power'));
+  const fixture=persistenceFixture([sku()]);assert.equal(await fixture.manager._commit([checked.sku]),true);
+  assert.deepEqual(JSON.parse(fixture.getStored()).skus[0].variants[0].powerRanges,JSON.parse(JSON.stringify(checked.sku.variants[0].powerRanges)));
+  for(const mutate of [v=>v.powerRanges=[],v=>v.powerRanges='wrong',v=>v.powerRanges[0].diameter='',v=>v.powerRanges[0].diameter=151,v=>v.powerRanges[0].sphMin=7,v=>v.powerRanges[1].cylMax=1,v=>v.powerRanges[1].addMin=-1]){
+    const bad=copy(input);mutate(bad.variants[0]);assert.equal(validateSku(bad,context).ok,false);
+  }
+});
+
+test('editing a legacy power configuration derives exact diameter rows from its assigned blanks', () => {
+  const variant=copy(sku().variants[0]),originalPower=copy(variant.power);
+  const rows=SkuManager.helpers.editableRanges(variant,materials);
+  const ids=new Set(variant.assignments.flatMap(a=>a.blankIds));
+  const expected=[...new Set(materials.blanks.filter(b=>ids.has(b.id)).map(b=>b.diameter))].sort((a,b)=>a-b);
+  assert.deepEqual(rows.map(r=>r.diameter),expected);
+  for(const row of rows){const {diameter,...power}=row;assert.deepEqual(power,originalPower);}
+});
+
 test('rejects supplier, index, product, and blank mismatches', () => {
   invalidSku(s => { s.variants[0].assignments[0].supplier = 'SOA'; }, /supplier tidak sesuai/);
   invalidSku(s => { s.variants[0].index = '1.56'; }, /indeks produk bahan baku tidak sesuai/);

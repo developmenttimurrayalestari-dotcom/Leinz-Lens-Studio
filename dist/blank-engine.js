@@ -19,6 +19,9 @@
     'sku-range-invalid': 'Rentang power finish SKU belum valid.',
     'sku-power-outside': 'Power berada di luar rentang finish SKU.',
     'sku-blank-unassigned': 'Blank belum di-assign ke SKU untuk supplier dan produk ini.',
+    'sku-diameter-range-invalid': 'Rentang diameter SKU harus berupa minimum dan maksimum 20–150 mm.',
+    'sku-diameter-outside': 'Diameter blank tidak diizinkan pada konfigurasi SKU untuk power ini.',
+    'sku-power-diameter-outside': 'Power tidak memenuhi range SKU untuk diameter blank ini.',
     'raw-power-outside': 'Power tidak memenuhi aturan rentang bahan baku.',
     'invalid-blank-diameter': 'Diameter blank pada katalog belum valid.',
     'blank-too-small-r': 'Diameter tidak cukup untuk lensa kanan (R).',
@@ -183,11 +186,32 @@
 
     const skuApplied = skuVariant !== null && skuVariant !== undefined;
     let skuPowerAllowed = true;
+    let skuDiameterMin = null, skuDiameterMax = null;
+    let skuRanges = null, matchingSkuRanges = [];
     const validAssignments = [];
     if (skuApplied) {
       if (skuVariant.enabled !== true) commonReasons.push('sku-disabled');
       if (indexLabel(skuVariant.index) !== chosenIndex) commonReasons.push('sku-index-mismatch');
+      if (Object.hasOwn(skuVariant,'powerRanges')) {
+        skuRanges = Array.isArray(skuVariant.powerRanges) ? skuVariant.powerRanges : [];
+        const valid = skuRanges.length > 0 && skuRanges.length <= 2000 && skuRanges.every(row => row &&
+          numeric(row.diameter)!==null && numeric(row.diameter)>=20 && numeric(row.diameter)<=150 &&
+          ['sph','cyl','add'].every(k => numeric(row[k+'Min'])!==null && numeric(row[k+'Max'])!==null && numeric(row[k+'Min'])<=numeric(row[k+'Max'])) &&
+          numeric(row.cylMax)<=0 && numeric(row.addMin)>=0);
+        if (!valid) {errors.push(error('skuVariant.powerRanges','sku-range-invalid','Isi diameter dan rentang SPH/CYL/ADD yang valid pada setiap baris SKU.'));commonReasons.push('sku-range-invalid');}
+        matchingSkuRanges = valid && rxValid ? skuRanges.filter(row => ['sph','cyl','add'].every(k => inRange(prescription[k],row[k+'Min'],row[k+'Max']))) : [];
+        skuPowerAllowed = matchingSkuRanges.length > 0;
+        if (valid && rxValid && !skuPowerAllowed) commonReasons.push('sku-power-outside');
+      } else {
       const power = skuVariant.power || {};
+      const hasDiameter = ['diameterMin','diameterMax'].some(key => power[key] !== undefined && power[key] !== null && String(power[key]).trim() !== '');
+      if (hasDiameter) {
+        skuDiameterMin = numeric(power.diameterMin); skuDiameterMax = numeric(power.diameterMax);
+        if (skuDiameterMin === null || skuDiameterMax === null || skuDiameterMin < 20 || skuDiameterMax > 150 || skuDiameterMin > skuDiameterMax) {
+          errors.push(error('skuVariant.power.diameter', 'sku-diameter-range-invalid', reasonLabels['sku-diameter-range-invalid']));
+          commonReasons.push('sku-diameter-range-invalid');
+        }
+      }
       const powerValid = ['sph', 'cyl', 'add'].every(k => {
         const lo = numeric(power[k + 'Min']), hi = numeric(power[k + 'Max']);
         return lo !== null && hi !== null && lo <= hi;
@@ -198,6 +222,7 @@
       }
       skuPowerAllowed = powerValid && rxValid && ['sph', 'cyl', 'add'].every(k => inRange(prescription[k], power[k + 'Min'], power[k + 'Max']));
       if (powerValid && rxValid && !skuPowerAllowed) commonReasons.push('sku-power-outside');
+      }
       const assignments = Array.isArray(skuVariant.assignments) ? skuVariant.assignments : [];
       assignments.forEach((assignment, i) => {
         const assignedProduct = productMap.get(assignment?.productId);
@@ -225,6 +250,9 @@
       const skuAssignmentMatches = !skuApplied || validAssignments.some(a =>
         a.productId === productId && a.supplier === product?.supplier && a.blankIds.includes(blank.id));
       const diameter = numeric(blank.diameter), diameterValid = diameter !== null && diameter > 0;
+      const skuDiameterMatches = skuRanges !== null ? diameterValid && skuRanges.some(r=>Math.abs(numeric(r?.diameter)-diameter)<=EPSILON) :
+        skuDiameterMin === null && skuDiameterMax === null || diameterValid && skuDiameterMin !== null && skuDiameterMax !== null && inRange(diameter,skuDiameterMin,skuDiameterMax);
+      const skuPowerMatches = skuRanges !== null ? diameterValid && matchingSkuRanges.some(r=>Math.abs(numeric(r.diameter)-diameter)<=EPSILON) : skuPowerAllowed;
       const sizeMarginR = frameValid && diameterValid ? diameter - frame.eyes.R.requiredDiameter : null;
       const sizeMarginL = frameValid && diameterValid ? diameter - frame.eyes.L.requiredDiameter : null;
       const fitsR = sizeMarginR !== null ? sizeMarginR >= -EPSILON : null;
@@ -234,15 +262,17 @@
       if (!skuAssignmentMatches) reasons.push('sku-blank-unassigned');
       if (rxValid && !rawPowerMatches) reasons.push('raw-power-outside');
       if (!diameterValid) reasons.push('invalid-blank-diameter');
+      if (!skuDiameterMatches) reasons.push('sku-diameter-outside');
+      if (skuRanges !== null && skuDiameterMatches && !skuPowerMatches && skuPowerAllowed) reasons.push('sku-power-diameter-outside');
       const reasonsR = [...reasons], reasonsL = [...reasons];
       if (fitsR === false) reasonsR.push('blank-too-small-r');
       if (fitsL === false) reasonsL.push('blank-too-small-l');
-      const baseEligible = contextAllowed && blank.active !== false && rawPowerMatches && skuAssignmentMatches && skuPowerAllowed && diameterValid;
+      const baseEligible = contextAllowed && blank.active !== false && rawPowerMatches && skuAssignmentMatches && skuPowerMatches && diameterValid && skuDiameterMatches;
       return {
         blank: { ...blank }, allSourceRows: sourceRows(allRules), sourceRows: sourceRows(matchingRules),
         matchingRuleIds: unique(matchingRules.map(r => r.id)), ruleCount: allRules.length, matchingRuleCount: matchingRules.length,
         exactDuplicateExtraRows: matchingRules.reduce((sum, r) => sum + Math.max(0, numeric(r.exactDuplicateCount) || 0), 0),
-        rawPowerMatches, skuAssignmentMatches, skuPowerMatches: skuPowerAllowed,
+        rawPowerMatches, skuAssignmentMatches, skuPowerMatches, skuDiameterMatches,
         fitsR, fitsL, sizeMarginR, sizeMarginL,
         eligibleR: baseEligible && fitsR === true, eligibleL: baseEligible && fitsL === true,
         eligibleBoth: baseEligible && fitsR === true && fitsL === true,
@@ -260,7 +290,7 @@
       minDiameterR: diameters(forR)[0] ?? null, minDiameterL: diameters(forL)[0] ?? null,
       minDiameterBoth: diameters(forBoth)[0] ?? null,
       availableDiameters: diameters(rows.filter(r=>r.blank.active!==false)), assignedDiameters: diameters(rows.filter(r => r.blank.active!==false && r.skuAssignmentMatches)),
-      powerEligibleDiameters: diameters(rows.filter(r => contextAllowed && r.blank.active!==false && r.rawPowerMatches && r.skuAssignmentMatches && r.skuPowerMatches)),
+      powerEligibleDiameters: diameters(rows.filter(r => contextAllowed && r.blank.active!==false && r.rawPowerMatches && r.skuAssignmentMatches && r.skuPowerMatches && r.skuDiameterMatches)),
       requiredDiameterR: frameValid ? frame.eyes.R.requiredDiameter : null,
       requiredDiameterL: frameValid ? frame.eyes.L.requiredDiameter : null
     };

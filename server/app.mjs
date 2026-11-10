@@ -104,7 +104,7 @@ export function createApp({ store, config, logger = console }) {
         if (req.method === 'PUT') {
           await requireCsrf();
           const body = await readBody(req, config.bodyLimit);
-          return sendJson(res, 200, await store.putCatalogs(body.value, body.revision));
+          return sendJson(res, 200, await store.putCatalogs(body.value, body.revision, body.deletion || null));
         }
         throw new AppError(405, 'method', 'Metode permintaan tidak tersedia.');
       }

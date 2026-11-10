@@ -4,10 +4,10 @@
   "targetDatabase": "MySQL 5.7.24",
   "dataScope": "Complete packaged reference catalogs; not an export of an operational database or browser-local edits.",
   "counts": {
-    "suppliers": 2,
-    "products": 19,
-    "blanks": 186,
-    "powerRules": 2026,
+    "suppliers": 5,
+    "products": 91,
+    "blanks": 796,
+    "powerRules": 6829,
     "frameShapes": 13,
     "tinting": 66,
     "skus": 0
@@ -40,39 +40,94 @@
         76,
         80
       ]
+    },
+    {
+      "supplier": "TRN",
+      "products": 30,
+      "blanks": 248,
+      "powerRules": 2036,
+      "diametersMm": [
+        65,
+        69,
+        70,
+        72,
+        74,
+        75,
+        76,
+        80,
+        81
+      ]
+    },
+    {
+      "supplier": "UNI",
+      "products": 35,
+      "blanks": 310,
+      "powerRules": 2373,
+      "diametersMm": [
+        65,
+        70,
+        72,
+        75,
+        76,
+        77,
+        78,
+        79,
+        80
+      ]
+    },
+    {
+      "supplier": "WXG",
+      "products": 7,
+      "blanks": 52,
+      "powerRules": 394,
+      "diametersMm": [
+        70,
+        75,
+        80
+      ]
     }
   ],
   "indexBreakdown": [
     {
       "index": "1.50",
-      "products": 2,
-      "blanks": 12,
-      "powerRules": 157,
+      "products": 15,
+      "blanks": 110,
+      "powerRules": 830,
       "diametersMm": [
+        65,
         70,
         72,
+        75,
         76,
         80
       ]
     },
     {
       "index": "1.56",
-      "products": 2,
-      "blanks": 14,
-      "powerRules": 71,
+      "products": 19,
+      "blanks": 146,
+      "powerRules": 1021,
       "diametersMm": [
         70,
         75,
+        76,
+        77,
+        78,
+        79,
         80
       ]
     },
     {
       "index": "1.57",
-      "products": 3,
-      "blanks": 25,
-      "powerRules": 272,
+      "products": 8,
+      "blanks": 71,
+      "powerRules": 581,
       "diametersMm": [
-        75
+        70,
+        75,
+        77,
+        78,
+        80
       ]
     },
     {
@@ -87,30 +142,48 @@
     },
     {
       "index": "1.60",
-      "products": 3,
-      "blanks": 40,
-      "powerRules": 641,
+      "products": 20,
+      "blanks": 194,
+      "powerRules": 2050,
       "diametersMm": [
+        65,
         70,
         72,
-        75
+        75,
+        76,
+        80
+      ]
+    },
+    {
+      "index": "1.61",
+      "products": 2,
+      "blanks": 16,
+      "powerRules": 84,
+      "diametersMm": [
+        70,
+        75,
+        80
       ]
     },
     {
       "index": "1.67",
-      "products": 3,
-      "blanks": 34,
-      "powerRules": 291,
+      "products": 18,
+      "blanks": 177,
+      "powerRules": 1492,
       "diametersMm": [
+        65,
         70,
-        75
+        75,
+        76,
+        80,
+        81
       ]
     },
     {
       "index": "1.74",
-      "products": 5,
-      "blanks": 46,
-      "powerRules": 474,
+      "products": 8,
+      "blanks": 67,
+      "powerRules": 651,
       "diametersMm": [
         65,
         69,
@@ -130,7 +203,8 @@
     "1.74"
   ],
   "catalogOnlyIndices": [
-    "1.59"
+    "1.59",
+    "1.61"
   ],
   "shapes": [
     {
@@ -204,17 +278,17 @@
     "Solid": 46
   },
   "sourceRows": {
-    "declaredRows": 2689,
-    "preservedRowReferences": 2689,
-    "uniqueReferencedRows": 2689,
-    "exactDuplicateExtraRows": 663
+    "declaredRows": 6829,
+    "preservedRowReferences": 6829,
+    "uniqueReferencedRows": 6829,
+    "exactDuplicateExtraRows": 0
   },
   "sourceAssets": {
     "materials": {
       "path": "dist/assets/materials.json",
-      "fileSha256": "031ed75a3a52324a2675b618f9a1e0eba311c0b3dde2747482d26a20532e712d",
-      "canonicalSha256": "c0efc3b8b9535b38fb0a48760521275ff159d26af802bf8d21c185ad42fea456",
-      "compactJsonUtf8Bytes": 460095
+      "fileSha256": "fa71a9017e371e5cad68ab5476d51423a0952905caf09b13c14418b0c354b0c0",
+      "canonicalSha256": "69e7d7f8a4a224e9d447788a3e4d90c03e05c0cbd005b1bf1b1e5f011939c52f",
+      "compactJsonUtf8Bytes": 5547708
     },
     "shapes": {
       "path": "dist/assets/shapes.json",
@@ -236,11 +310,50 @@
     "leinz_catalog_documents",
     "leinz_catalog_revision",
     "leinz_workspace_documents",
-    "leinz_user_documents"
+    "leinz_user_documents",
+    "leinz_rel_documents",
+    "leinz_rel_entities",
+    "leinz_rel_values",
+    "leinz_rel_materials",
+    "leinz_rel_products",
+    "leinz_rel_blanks",
+    "leinz_rel_power_rules",
+    "leinz_rel_source_rows",
+    "leinz_rel_shapes",
+    "leinz_rel_frame_shapes",
+    "leinz_rel_shape_points",
+    "leinz_rel_shape_aliases",
+    "leinz_rel_tints",
+    "leinz_rel_tint_items",
+    "leinz_rel_swatches",
+    "leinz_rel_skus",
+    "leinz_rel_sku_items",
+    "leinz_rel_sku_variants",
+    "leinz_rel_sku_power",
+    "leinz_rel_sku_assignments",
+    "leinz_rel_sku_blanks",
+    "leinz_rel_history",
+    "leinz_rel_consultations",
+    "leinz_rel_states",
+    "leinz_rel_choices",
+    "leinz_rel_cameras",
+    "leinz_rel_optics",
+    "leinz_rel_optical_profiles",
+    "leinz_rel_snapshots",
+    "leinz_rel_snapshot_choices",
+    "leinz_rel_snapshot_frames",
+    "leinz_rel_prescriptions",
+    "leinz_rel_previews",
+    "leinz_rel_frame_displays",
+    "leinz_rel_appearances",
+    "leinz_rel_sku_power_ranges"
   ],
-  "schemaVersion": 2,
+  "schemaVersion": 4,
+  "requiresVerifiedBackfill": "npm run db:migrate after SQL import; DDL alone records only versions 1 and 2",
   "expectedFreshInstallation": {
-    "schemaMigrationRows": 2,
+    "schemaMigrationRowsAfterSqlImport": 2,
+    "relationalDocumentRowsAfterBackfill": 4,
+    "schemaMigrationRows": 4,
     "catalogDocumentRows": 3,
     "catalogRevision": 1,
     "skuDocumentRows": 1,
@@ -251,16 +364,16 @@
   },
   "sqlFiles": {
     "leinz-schema.sql": {
-      "bytes": 3644,
-      "sha256": "16c43c499dcaa1109f52b62a98465b663b29d359c346a944945d6c47730e4474"
+      "bytes": 27042,
+      "sha256": "5d20ac3db1fb93c5f94bb12a11ab50f06ee1b753664f902b2497d5f708dc8981"
     },
     "leinz-master-data.sql": {
-      "bytes": 1124147,
-      "sha256": "805ad28ea88248d4da0e72dd503f9979e3dd13a78137866e1c162840816c50e6"
+      "bytes": 11299457,
+      "sha256": "3a982625eb07695da97decc0128309da8421d4e4e107c6035b562e32a5ed754f"
     },
     "leinz-schema-and-master-data.sql": {
-      "bytes": 1127394,
-      "sha256": "d1cbca86714293d6399d319b6eb499600c7385dcf4d7699a2568fd245328568c"
+      "bytes": 11326018,
+      "sha256": "07d426ac71b2d4a50655224ff7c0d3468ca4f38cfd9aaf58f7767548c74f06dd"
     }
   }
 }

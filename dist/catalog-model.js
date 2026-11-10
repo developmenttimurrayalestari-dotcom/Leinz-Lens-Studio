@@ -2,8 +2,8 @@
 (function (global) {
   'use strict';
   const SCHEMA = 'trl-master-catalogs/1.0';
-  const INDICES = Object.freeze(['1.50','1.56','1.57','1.59','1.60','1.67','1.74']);
-  const SIMULATOR_INDICES = Object.freeze(INDICES.filter(index => index !== '1.59'));
+  const INDICES = Object.freeze(['1.50','1.56','1.57','1.59','1.60','1.61','1.67','1.74']);
+  const SIMULATOR_INDICES = Object.freeze(INDICES.filter(index => !['1.59','1.61'].includes(index)));
   const GROUPS = Object.freeze(['fashion','sunglass','therapeutic','special']);
   const isObject = value => value !== null && typeof value === 'object' && !Array.isArray(value);
   const clone = value => JSON.parse(JSON.stringify(value));
@@ -82,7 +82,7 @@
       indices:[...new Set(products.map(p=>p.index))].sort()};
   }
 
-  function validateCatalogBundle(input, {previous,skuCatalog} = {}) {
+  function validateCatalogBundle(input, {previous,skuCatalog,allowDelete=false} = {}) {
     const errors=[]; const add = message => { if(errors.length<100&&!errors.includes(message))errors.push(message); };
     if(!isObject(input))return {ok:false,errors:['Master harus berupa objek materials, shapes, dan tints.'],value:null};
     const problem=jsonProblem(input); if(problem)return {ok:false,errors:[problem],value:null};
@@ -160,7 +160,7 @@
     }
     // Existing identities remain available to saved consultations. Use archive
     // instead of physical removal; rule ranges may be edited/removed explicitly.
-    if(previous){
+    if(previous&&!allowDelete){
       const priorLists=[['produk',previous.materials?.products,productMap,'id'],['blank',previous.materials?.blanks,blankMap,'id'],['shape',previous.shapes?.items,shapeMap,'code'],['tint',previous.tints?.items,tintMap,'code']];
       for(const [label,rows,map,key]of priorLists)for(const row of Array.isArray(rows)?rows:[])if(!map.has(row[key]))add('Master '+label+' '+row[key]+' tidak boleh dihapus. Arsipkan untuk mempertahankan riwayat.');
     }
@@ -174,12 +174,30 @@
     return {ok:errors.length===0,errors,value:errors.length?null:clone(input)};
   }
 
+  function deleteItems(current,kind,ids,{skuCatalog,documents=[]}={}) {
+    if(!['product','blank','shape','tint'].includes(kind)||!Array.isArray(ids)||!ids.length||ids.length>10000||ids.some(id=>typeof id!=='string'))throw Error('Pilih item master yang akan dihapus.');
+    const next=clone(current),selected=new Set(ids),rows=kind==='product'?next.materials.products:kind==='blank'?next.materials.blanks:kind==='shape'?next.shapes.items:next.tints.items,key=['shape','tint'].includes(kind)?'code':'id';
+    if(ids.some(id=>!rows.some(r=>r[key]===id)))throw Error('Item berubah atau sudah dihapus. Muat master terbaru.');
+    const blanks=new Set(next.materials.blanks.filter(b=>kind==='blank'?selected.has(b.id):kind==='product'&&selected.has(b.productId)).map(b=>b.id));
+    const referenced=state=>state&&(
+      kind==='shape'&&selected.has(state.shape)||
+      ['a','b'].some(k=>state[k]&&(kind==='tint'&&selected.has(state[k].tintCode)||kind==='product'&&selected.has(state[k].productId)||blanks.has(state[k].blankIdR)||blanks.has(state[k].blankIdL))));
+    for(const doc of documents)if(referenced(doc)||Array.isArray(doc)&&doc.some(item=>referenced(item?.state)))throw Error('Item masih dipakai dalam draft atau riwayat konsultasi. Lepaskan referensinya sebelum menghapus, atau gunakan arsip.');
+    if(kind==='product')next.materials.products=next.materials.products.filter(p=>!selected.has(p.id));
+    if(kind==='product'||kind==='blank'){next.materials.blanks=next.materials.blanks.filter(b=>!blanks.has(b.id));next.materials.rules=next.materials.rules.filter(r=>!blanks.has(r.blankId));}
+    if(kind==='shape')next.shapes.items=next.shapes.items.filter(r=>!selected.has(r.code));
+    if(kind==='tint')next.tints.items=next.tints.items.filter(r=>!selected.has(r.code));
+    const result=validateCatalogBundle(next,{previous:current,skuCatalog,allowDelete:true});
+    if(!result.ok)throw Error(result.errors.join(' '));
+    return result.value;
+  }
+
   function validateCatalogs(input, options={}) {
     const result=validateCatalogBundle(input,{...options,skuCatalog:options.skuCatalog||(options.skus?{skus:options.skus}:undefined)});
     if(!result.ok)throw Object.assign(new Error(result.errors.join(' ')),{errors:result.errors});
     return result.value;
   }
-  const api={SCHEMA,INDICES,SIMULATOR_INDICES,GROUPS,active,validId,validateOpticalProfile,contourProblem,validateCatalogBundle,validateCatalogs,summarizeCatalogs};
+  const api={SCHEMA,INDICES,SIMULATOR_INDICES,GROUPS,active,validId,validateOpticalProfile,contourProblem,validateCatalogBundle,validateCatalogs,deleteItems,summarizeCatalogs};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;
   global.LeinzCatalogModel=api;
 })(typeof window!=='undefined'?window:globalThis);

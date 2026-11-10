@@ -1,0 +1,62 @@
+{
+  "assets": {
+    "source": "DMO UNI OSA WXG TRN.xlsx",
+    "sha256": "78c86fdd16cf6af1f92f08d35ab641527f1cb1fda7b4e788f727ae5c53cb1213",
+    "sourceRows": 6829,
+    "before": {
+      "products": 19,
+      "blanks": 186,
+      "rules": 2026
+    },
+    "after": {
+      "products": 91,
+      "blanks": 796,
+      "rules": 6829
+    },
+    "thicknessChanges": [],
+    "kind": "materials",
+    "format": "Excel",
+    "rowCount": 6829,
+    "sheetNames": [
+      "DMO UNV OSA"
+    ],
+    "uniqueRecords": 6829,
+    "duplicateRows": 0,
+    "touchedProducts": 91,
+    "touchedBlanks": 796,
+    "removedRules": 0,
+    "addedRules": 4803,
+    "unchangedRules": 2026
+  },
+  "database": {
+    "source": "DMO UNI OSA WXG TRN.xlsx",
+    "sha256": "78c86fdd16cf6af1f92f08d35ab641527f1cb1fda7b4e788f727ae5c53cb1213",
+    "sourceRows": 6829,
+    "before": {
+      "products": 19,
+      "blanks": 186,
+      "rules": 2026
+    },
+    "after": {
+      "products": 91,
+      "blanks": 796,
+      "rules": 6829
+    },
+    "thicknessChanges": [],
+    "kind": "materials",
+    "format": "Excel",
+    "rowCount": 6829,
+    "sheetNames": [
+      "DMO UNV OSA"
+    ],
+    "uniqueRecords": 6829,
+    "duplicateRows": 0,
+    "touchedProducts": 91,
+    "touchedBlanks": 796,
+    "removedRules": 0,
+    "addedRules": 4803,
+    "unchangedRules": 2026,
+    "verified": true
+  },
+  "backupDirectory": "J:\\Irwan\\LENS STUDIO\\PROJECT UPLOAD GIT\\.qa\\backups\\2026-11-10T05-43-10-842Z"
+}

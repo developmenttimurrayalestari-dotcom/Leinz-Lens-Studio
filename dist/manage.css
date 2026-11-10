@@ -1,6 +1,9 @@
 /* Management workspace, scoped to the master editor. */
 .master-manager{--mm-line:#e5e7df;--mm-soft:#f6f8f2;--mm-green:#4d705e;--mm-orange:#c45c35;color:var(--ink,#292e2c)}
 .mm-shell{background:#fff;border:1px solid var(--mm-line);border-radius:18px;padding:27px 28px 25px;box-shadow:var(--shadow)}
+.mm-bulk-controls{display:flex;gap:12px;align-items:center;flex-wrap:wrap;border:1px solid var(--mm-line);border-radius:8px;padding:10px;margin:0 0 12px;font-size:12px}
+.mm-product-item{display:flex;gap:7px;align-items:flex-start;min-width:0}.mm-product-item .mm-product{min-width:0;flex:1}
+.mm-select-item{display:inline-flex;align-items:center;padding:6px 0}.mm-select-item input{width:18px;height:18px;min-height:18px}.mm-delete{color:#a52a2a}
 .mm-toolbar{display:flex;justify-content:space-between;align-items:flex-start;gap:24px;margin-bottom:18px}
 .mm-toolbar h2{font-size:24px;letter-spacing:-.7px;margin:0 0 9px;font-weight:600}
 .mm-toolbar p{font-size:12px;line-height:1.7;color:#7c8278;margin:0;max-width:620px}

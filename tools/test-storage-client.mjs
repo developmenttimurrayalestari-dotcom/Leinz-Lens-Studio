@@ -16,6 +16,19 @@ const deferred = () => {
   return { promise, resolve, reject };
 };
 
+test('catalog deletion metadata survives network failure and retry with the same revision',async()=>{
+  let fail=true;
+  const f=mysqlFixture(req=>{if(req.path==='/api/catalogs'&&req.method==='PUT'&&fail){fail=false;throw Error('offline');}});
+  f.documents.catalogs.value.tints.items=[{code:'DELETE-ME'}];await f.ready();
+  const value=copy(f.documents.catalogs.value);value.tints.items=[];
+  const deletion={kind:'tint',ids:['DELETE-ME']};
+  await assert.rejects(f.adapter.saveCatalogs(value,{deletion}));
+  await f.adapter.retryPending();
+  assert.equal(f.puts().length,2);
+  for(const req of f.puts()){assert.deepEqual(req.body.deletion,deletion);assert.equal(req.body.revision,0);}
+  assert.equal(f.adapter.pendingOptions.size,0);
+});
+
 function mysqlFixture(intercept = () => undefined) {
   const requests = [], statuses = [], localCalls = [];
   const documents = {

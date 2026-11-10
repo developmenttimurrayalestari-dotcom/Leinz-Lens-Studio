@@ -4,10 +4,11 @@ import { resolve } from 'node:path';
 import { createHash } from 'node:crypto';
 import { PROJECT_ROOT } from './config.mjs';
 import { AppError } from './errors.mjs';
-import { validateDocument, validateRevision, validateMasterCatalogs } from './validation.mjs';
+import { validateDocument, validateRevision, validateMasterCatalogs, validateMasterDeletion } from './validation.mjs';
 import { username, hashPassword, tokenHash, newToken, newCsrf } from './auth.mjs';
+import { REL_TABLES, readRelational, writeRelational, assertPreserved, documentId } from './relational.mjs';
 
-export const TABLES = ['leinz_schema_migrations', 'leinz_users', 'leinz_sessions', 'leinz_catalog_documents', 'leinz_catalog_revision', 'leinz_workspace_documents', 'leinz_user_documents'];
+export const TABLES = ['leinz_schema_migrations', 'leinz_users', 'leinz_sessions', 'leinz_catalog_documents', 'leinz_catalog_revision', 'leinz_workspace_documents', 'leinz_user_documents', ...REL_TABLES];
 export const createPool = config => mysql.createPool(config.mysql);
 export const decodeJson = value => typeof value === 'string' ? JSON.parse(value) : value;
 export const emptySkuCatalog = () => ({ schema: 'trl-sku-catalog/1.0', skus: [] });
@@ -37,30 +38,79 @@ export async function inspectDatabase(pool, { requireSchema = true, requireSeed 
   if (present.has('leinz_schema_migrations')) {
     const [[version]] = await pool.query('SELECT MAX(version) AS version FROM leinz_schema_migrations'); schemaVersion = Number(version.version || 0);
   }
-  if (requireSchema && schemaVersion < 2) throw Error('Skema perlu diperbarui. Jalankan npm run db:migrate untuk versi 2.1.');
+  if (requireSchema && schemaVersion < 4) throw Error('Skema perlu diperbarui. Jalankan npm run db:migrate untuk range SKU per diameter (skema 4).');
   if (present.has('leinz_catalog_documents')) {
     const [[count]] = await pool.query('SELECT COUNT(*) AS n FROM leinz_catalog_documents'); catalogCount = Number(count.n);
   }
   if (requireSeed && catalogCount !== 3) throw Error('Katalog belum lengkap. Jalankan npm run db:seed.');
-  if (catalogCount === 3 && present.has('leinz_catalog_revision')) {
+  if (catalogCount === 3 && schemaVersion >= 3 && present.has('leinz_catalog_revision')) {
     const catalog = await readCatalogs(pool);
     catalogRevision = catalog.revision;
     const { materials, shapes, tints } = catalog.value;
     masterCounts = { products: materials.products?.length ?? 0, blanks: materials.blanks?.length ?? 0, powerRules: materials.rules?.length ?? 0, frameShapes: shapes.items?.length ?? 0, tinting: tints.items?.length ?? 0 };
     catalogContentSha256 = Object.fromEntries(CATALOG_KEYS.map(key => [key, catalogDigest(catalog.value[key])]));
     if (present.has('leinz_workspace_documents')) {
-      const [skus] = await pool.execute('SELECT document_json FROM leinz_workspace_documents WHERE document_key = ?', ['skus']);
-      masterCounts.skus = skus[0] ? (decodeJson(skus[0].document_json).skus?.length ?? 0) : 0;
+      const [skus] = await pool.query('SELECT COUNT(*) AS n FROM leinz_rel_sku_items');
+      masterCounts.skus = Number(skus[0].n);
     }
   }
   return { version: row.version, charset: row.charset, maxAllowedPacket: Number(row.maxPacket), sqlMode: row.sqlMode, tables: TABLES.filter(name => present.has(name)), catalogCount, schemaVersion, catalogRevision, masterCounts, catalogContentSha256 };
 }
 
-async function readCatalogs(connection) {
-  // A single consistent read keeps the revision and all catalog rows in one snapshot.
-  const [rows] = await connection.query('SELECT c.document_key, c.document_json, r.revision FROM leinz_catalog_documents c CROSS JOIN leinz_catalog_revision r WHERE r.id = 1 ORDER BY c.document_key');
-  if (rows.length !== 3 || !CATALOG_KEYS.every(key => rows.some(row => row.document_key === key))) throw new AppError(503, 'catalog_uninitialized', 'Master belum lengkap. Jalankan db:migrate dan db:seed.');
-  return { value: Object.fromEntries(rows.map(row => [row.document_key, decodeJson(row.document_json)])), revision: Number(rows[0].revision) };
+async function snapshot(source, operation) {
+  if (typeof source.getConnection !== 'function') return operation(source);
+  const connection = await source.getConnection();
+  try {
+    await connection.query('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ');
+    await connection.beginTransaction();
+    const result = await operation(connection);
+    await connection.commit(); return result;
+  } catch (error) { await connection.rollback(); throw error; }
+  finally { connection.release(); }
+}
+
+async function readCatalogs(source) {
+  return snapshot(source, async connection => {
+    const [rows] = await connection.query('SELECT c.document_key, r.revision FROM leinz_catalog_documents c CROSS JOIN leinz_catalog_revision r WHERE r.id = 1 ORDER BY c.document_key');
+    if (rows.length !== 3 || !CATALOG_KEYS.every(key => rows.some(row => row.document_key === key))) throw new AppError(503, 'catalog_uninitialized', 'Master belum lengkap. Jalankan db:migrate dan db:seed.');
+    const value = {};
+    for (const row of rows) value[row.document_key] = await readRelational(connection,'catalog',row.document_key);
+    return { value, revision: Number(rows[0].revision) };
+  });
+}
+
+// DDL is deliberately outside this transaction: MySQL 5.7 DDL commits implicitly.
+// All legacy rows, extracted values, verification and version marking are then
+// locked/committed together. A rerun never imports frozen JSON over live tables.
+export async function backfillRelational(connection) {
+  await connection.query('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ');
+  await connection.beginTransaction();
+  try {
+    const [[version]] = await connection.query('SELECT MAX(version) AS version FROM leinz_schema_migrations');
+    if (Number(version.version) >= 3) { await connection.commit(); return; }
+    await connection.query('SELECT revision FROM leinz_catalog_revision WHERE id=1 FOR UPDATE');
+    const [catalogs] = await connection.query('SELECT document_key,document_json FROM leinz_catalog_documents ORDER BY document_key FOR UPDATE');
+    const [workspace] = await connection.query('SELECT document_key,document_json FROM leinz_workspace_documents ORDER BY document_key FOR UPDATE');
+    const [users] = await connection.query('SELECT user_id,document_key FROM leinz_user_documents ORDER BY user_id,document_key FOR UPDATE');
+    const documents = [...catalogs.map(r => ({...r,scope:'catalog'})),...workspace.map(r => ({...r,scope:'workspace'})),...users.map(r => ({...r,scope:'user'}))];
+    // All master types must exist before SKU foreign keys are inserted.
+    const priority = {materials:0,shapes:1,tints:2,skus:3,state:4,saved:5};
+    documents.sort((a,b) => (priority[a.document_key] ?? 99)-(priority[b.document_key] ?? 99));
+    for (const row of documents) {
+      const userId = row.user_id ?? null;
+      if (row.scope === 'user') {
+        const [[source]] = await connection.execute('SELECT document_json FROM leinz_user_documents WHERE user_id=? AND document_key=?',[userId,row.document_key]);
+        row.document_json = source.document_json;
+      }
+      const value = decodeJson(row.document_json);
+      await writeRelational(connection,row.scope,row.document_key,value,userId);
+      assertPreserved(value,await readRelational(connection,row.scope,row.document_key,userId),`${row.scope}/${row.document_key}/${userId ?? ''}`);
+      await connection.execute('UPDATE leinz_rel_documents SET migrated_sha256=?,migrated_at=UTC_TIMESTAMP() WHERE document_id=?',[catalogDigest(value),documentId(row.scope,row.document_key,userId)]);
+      delete row.document_json;
+    }
+    await connection.query('INSERT INTO leinz_schema_migrations (version,applied_at) VALUES (3,UTC_TIMESTAMP())');
+    await connection.commit();
+  } catch (error) { await connection.rollback(); throw error; }
 }
 
 export async function migrate(pool) {
@@ -69,11 +119,13 @@ export async function migrate(pool) {
   try {
     const [[lock]] = await connection.query("SELECT GET_LOCK(SHA2(CONCAT(DATABASE(), ':leinz-migrate'), 256), 15) AS acquired");
     if (Number(lock.acquired) !== 1) throw Error('Migrasi lain sedang berjalan. Coba kembali setelah selesai.');
-    for (const file of ['001_initial.sql', '002_managed_catalogs.sql']) {
+    for (const file of ['001_initial.sql', '002_managed_catalogs.sql', '003_relational_documents.sql', '004_sku_power_ranges.sql']) {
       const sql = await readFile(resolve(PROJECT_ROOT, 'database', file), 'utf8');
       const statements = sql.replace(/^\s*--.*$/gm, '').split(';').map(text => text.trim()).filter(Boolean);
       for (const statement of statements) await connection.query(statement);
     }
+    await backfillRelational(connection);
+    await connection.query('INSERT IGNORE INTO leinz_schema_migrations (version,applied_at) VALUES (4,UTC_TIMESTAMP())');
   } finally {
     try { await connection.query("SELECT RELEASE_LOCK(SHA2(CONCAT(DATABASE(), ':leinz-migrate'), 256))"); } catch { /* connection may have failed */ }
     connection.release();
@@ -99,9 +151,19 @@ export async function seed(pool) {
     for (const [key, item] of Object.entries(catalogs)) {
       const [result] = await connection.execute('INSERT IGNORE INTO leinz_catalog_documents (document_key, document_json, source_sha256, updated_at) VALUES (?, ?, ?, UTC_TIMESTAMP())', [key, item.text, item.sha]);
       inserted += result.affectedRows;
+      const [[existing]] = await connection.execute('SELECT document_id FROM leinz_rel_documents WHERE document_id=?',[documentId('catalog',key)]);
+      if (!existing) {
+        const [[legacy]] = await connection.execute('SELECT document_json FROM leinz_catalog_documents WHERE document_key=?',[key]);
+        await writeRelational(connection,'catalog',key,decodeJson(legacy.document_json));
+      }
     }
     if (inserted) await connection.query('UPDATE leinz_catalog_revision SET revision = revision + 1, updated_at = UTC_TIMESTAMP() WHERE id = 1');
     await connection.execute('INSERT IGNORE INTO leinz_workspace_documents (document_key, document_json, revision, updated_at) VALUES (?, ?, 0, UTC_TIMESTAMP())', ['skus', JSON.stringify(emptySkuCatalog())]);
+    const [[skuRel]] = await connection.execute('SELECT document_id FROM leinz_rel_documents WHERE document_id=?',[documentId('workspace','skus')]);
+    if (!skuRel) {
+      const [[legacy]] = await connection.query("SELECT document_json FROM leinz_workspace_documents WHERE document_key='skus'");
+      await writeRelational(connection,'workspace','skus',decodeJson(legacy.document_json));
+    }
     await connection.commit();
   } catch (error) { await connection.rollback(); throw error; }
   finally { connection.release(); }
@@ -113,7 +175,10 @@ export async function createUser(pool, name, password) {
   try {
     await connection.beginTransaction();
     const [result] = await connection.execute('INSERT INTO leinz_users (username, password_hash, active, created_at) VALUES (?, ?, 1, UTC_TIMESTAMP())', [userName, hash]);
-    for (const [key, value] of [['state', null], ['saved', []]]) await connection.execute('INSERT INTO leinz_user_documents (user_id, document_key, document_json, revision, updated_at) VALUES (?, ?, ?, 0, UTC_TIMESTAMP())', [result.insertId, key, JSON.stringify(value)]);
+    for (const [key, value] of [['state', null], ['saved', []]]) {
+      await connection.execute('INSERT INTO leinz_user_documents (user_id, document_key, document_json, revision, updated_at) VALUES (?, ?, ?, 0, UTC_TIMESTAMP())', [result.insertId, key, JSON.stringify(value)]);
+      await writeRelational(connection,'user',key,value,result.insertId);
+    }
     await connection.commit();
     return { id: Number(result.insertId), username: userName };
   } catch (error) {
@@ -146,18 +211,29 @@ export class MysqlStore {
   }
   async removeSession(token) { if (token) await this.pool.execute('DELETE FROM leinz_sessions WHERE token_hash = ?', [tokenHash(token)]); }
   async getCatalogs(connection = this.pool) { return readCatalogs(connection); }
-  async putCatalogs(value, revision) {
+  async referencedDocuments(connection) {
+    const [rows]=await connection.query("SELECT user_id,document_key FROM leinz_user_documents WHERE document_key IN ('state','saved') ORDER BY user_id,document_key");
+    const values=[];
+    for(const row of rows)values.push(await readRelational(connection,'user',row.document_key,row.user_id));
+    return values;
+  }
+  async putCatalogs(value, revision, deletion = null) {
     validateRevision(revision);
     const connection = await this.pool.getConnection();
     try {
+      await connection.query('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ');
       await connection.beginTransaction();
       const [[row]] = await connection.query('SELECT revision FROM leinz_catalog_revision WHERE id = 1 FOR UPDATE');
       if (!row) throw new AppError(503, 'catalog_uninitialized', 'Revisi master belum dibuat. Jalankan db:migrate.');
       const current = await this.getCatalogs(connection);
       if (Number(row.revision) !== revision) throw new AppError(409, 'revision_conflict', 'Master berubah di sesi lain. Muat master terbaru dan tinjau kembali perubahan Anda.', { document: current });
       const skuCatalog = (await this.getDocument(null, 'skus', connection)).value;
-      const validated = validateMasterCatalogs(value, { previous: current.value, skuCatalog });
-      for (const key of CATALOG_KEYS) await connection.execute('UPDATE leinz_catalog_documents SET document_json = ?, source_sha256 = ?, updated_at = UTC_TIMESTAMP() WHERE document_key = ?', [JSON.stringify(validated[key]), catalogDigest(validated[key]), key]);
+      if(deletion)value=validateMasterDeletion(current.value,deletion,{skuCatalog,documents:await this.referencedDocuments(connection)});
+      const validated = validateMasterCatalogs(value, { previous: current.value, skuCatalog,allowDelete:Boolean(deletion) });
+      for (const key of CATALOG_KEYS) {
+        await writeRelational(connection,'catalog',key,validated[key]);
+        await connection.execute('UPDATE leinz_catalog_documents SET updated_at = UTC_TIMESTAMP() WHERE document_key = ?', [key]);
+      }
       await connection.execute('UPDATE leinz_catalog_revision SET revision = revision + 1, updated_at = UTC_TIMESTAMP() WHERE id = 1 AND revision = ?', [revision]);
       await connection.commit(); this.catalogs = validated;
       return { value: validated, revision: revision + 1 };
@@ -167,27 +243,47 @@ export class MysqlStore {
   async getDocument(userId, key, connection = this.pool, lock = false) {
     const shared = key === 'skus';
     if (!['state', 'saved', 'skus'].includes(key)) throw new AppError(404, 'not_found', 'Dokumen tidak ditemukan.');
-    const [rows] = shared
-      ? await connection.execute('SELECT document_json, revision FROM leinz_workspace_documents WHERE document_key = ?' + (lock ? ' FOR UPDATE' : ''), [key])
-      : await connection.execute('SELECT document_json, revision FROM leinz_user_documents WHERE user_id = ? AND document_key = ?' + (lock ? ' FOR UPDATE' : ''), [userId, key]);
-    if (!rows[0]) throw new AppError(503, 'storage_uninitialized', 'Dokumen database belum dibuat. Jalankan migrasi, seed, dan pembuatan akun.');
-    return { value: decodeJson(rows[0].document_json), revision: Number(rows[0].revision) };
+    return snapshot(connection, async connection => {
+      const [rows] = shared
+        ? await connection.execute('SELECT revision FROM leinz_workspace_documents WHERE document_key = ?' + (lock ? ' FOR UPDATE' : ''), [key])
+        : await connection.execute('SELECT revision FROM leinz_user_documents WHERE user_id = ? AND document_key = ?' + (lock ? ' FOR UPDATE' : ''), [userId, key]);
+      if (!rows[0]) throw new AppError(503, 'storage_uninitialized', 'Dokumen database belum dibuat. Jalankan migrasi, seed, dan pembuatan akun.');
+      return { value: await readRelational(connection,shared ? 'workspace' : 'user',key,shared ? null : userId), revision: Number(rows[0].revision) };
+    });
   }
   async putDocument(userId, key, value, revision) {
     validateRevision(revision);
     const connection = await this.pool.getConnection();
     try {
+      await connection.query('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ');
       await connection.beginTransaction();
       // Catalog writes take FOR UPDATE on this row. This shared lock keeps SKU
       // and consultation validation consistent with the committed catalog.
-      const [[lock]] = await connection.query('SELECT revision FROM leinz_catalog_revision WHERE id = 1 LOCK IN SHARE MODE');
+      const [[lock]] = await connection.query('SELECT revision FROM leinz_catalog_revision WHERE id = 1 '+(key==='skus'?'FOR UPDATE':'LOCK IN SHARE MODE'));
       if (!lock) throw new AppError(503, 'catalog_uninitialized', 'Revisi master belum dibuat. Jalankan db:migrate.');
       const catalogs = (await this.getCatalogs(connection)).value;
-      const validated = validateDocument(key, value, catalogs), text = JSON.stringify(validated);
+      const validated = validateDocument(key, value, catalogs);
+      if(key==='skus') {
+        const old=(await this.getDocument(null,'skus',connection)).value;
+        const removed=new Set(old.skus.filter(s=>!validated.skus.some(n=>n.id===s.id)).map(s=>s.id));
+        if(removed.size) {
+          const references=await this.referencedDocuments(connection);
+          const used=s=>s&&['a','b'].some(k=>removed.has(s[k]?.skuId));
+          if(references.some(d=>used(d)||Array.isArray(d)&&d.some(e=>used(e?.state))))throw new AppError(422,'sku_in_use','SKU masih dipakai dalam draft atau riwayat konsultasi. Lepaskan referensinya sebelum menghapus.');
+        }
+      }
       const [result] = key === 'skus'
-        ? await connection.execute('UPDATE leinz_workspace_documents SET document_json = ?, revision = revision + 1, updated_at = UTC_TIMESTAMP() WHERE document_key = ? AND revision = ?', [text, key, revision])
-        : await connection.execute('UPDATE leinz_user_documents SET document_json = ?, revision = revision + 1, updated_at = UTC_TIMESTAMP() WHERE user_id = ? AND document_key = ? AND revision = ?', [text, userId, key, revision]);
-      if (result.affectedRows !== 1) throw new AppError(409, 'revision_conflict', 'Data telah berubah di sesi lain. Muat data server dan tinjau perubahan sebelum menyimpan kembali.', { document: await this.getDocument(userId, key, connection, true) });
+        ? await connection.execute('UPDATE leinz_workspace_documents SET revision = revision + 1, updated_at = UTC_TIMESTAMP() WHERE document_key = ? AND revision = ?', [key, revision])
+        : await connection.execute('UPDATE leinz_user_documents SET revision = revision + 1, updated_at = UTC_TIMESTAMP() WHERE user_id = ? AND document_key = ? AND revision = ?', [userId, key, revision]);
+      if (result.affectedRows !== 1) {
+        // A failed conditional UPDATE may have waited for another writer. Start
+        // a fresh snapshot after rollback to return its complete committed value.
+        await connection.rollback();
+        await connection.query('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ');
+        await connection.beginTransaction();
+        throw new AppError(409, 'revision_conflict', 'Data telah berubah di sesi lain. Muat data server dan tinjau perubahan sebelum menyimpan kembali.', { document: await this.getDocument(userId,key,connection) });
+      }
+      await writeRelational(connection,key === 'skus' ? 'workspace' : 'user',key,validated,key === 'skus' ? null : userId);
       await connection.commit();
       return { value: validated, revision: revision + 1 };
     } catch (error) { await connection.rollback(); throw error; }
@@ -196,6 +292,7 @@ export class MysqlStore {
   async bootstrap(userId) {
     const connection = await this.pool.getConnection();
     try {
+      await connection.query('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ');
       await connection.beginTransaction();
       const catalog = await this.getCatalogs(connection);
       const documents = {};
