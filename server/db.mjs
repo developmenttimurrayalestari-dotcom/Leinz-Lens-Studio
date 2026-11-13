@@ -253,7 +253,11 @@ export class MysqlStore {
     for(const row of rows)values.push(await readRelational(connection,'user',row.document_key,row.user_id));
     return values;
   }
-  async putCatalogs(value, revision, deletion = null) {
+  async putMaterialIndices(value, revision) {
+    if (!Array.isArray(value)) throw new AppError(422, 'validation', 'Pilihan indeks bahan harus berupa daftar.');
+    return this.putCatalogs(null, revision, null, value);
+  }
+  async putCatalogs(value, revision, deletion = null, materialIndices = null) {
     validateRevision(revision);
     const connection = await this.pool.getConnection();
     try {
@@ -263,10 +267,11 @@ export class MysqlStore {
       if (!row) throw new AppError(503, 'catalog_uninitialized', 'Revisi master belum dibuat. Jalankan db:migrate.');
       const current = await this.getCatalogs(connection);
       if (Number(row.revision) !== revision) throw new AppError(409, 'revision_conflict', 'Master berubah di sesi lain. Muat master terbaru dan tinjau kembali perubahan Anda.', { document: current });
+      if (materialIndices !== null) value = { ...current.value, materials: { ...current.value.materials, indexOptions: materialIndices } };
       const skuCatalog = (await this.getDocument(null, 'skus', connection)).value;
       if(deletion)value=validateMasterDeletion(current.value,deletion,{skuCatalog,documents:await this.referencedDocuments(connection)});
       const validated = validateMasterCatalogs(value, { previous: current.value, skuCatalog,allowDelete:Boolean(deletion) });
-      for (const key of CATALOG_KEYS) {
+      for (const key of materialIndices === null ? CATALOG_KEYS : ['materials']) {
         await writeRelational(connection,'catalog',key,validated[key]);
         await connection.execute('UPDATE leinz_catalog_documents SET updated_at = UTC_TIMESTAMP() WHERE document_key = ?', [key]);
       }

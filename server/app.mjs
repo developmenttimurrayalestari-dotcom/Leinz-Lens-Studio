@@ -120,6 +120,13 @@ export function createApp({ store, config, logger = console }) {
         }
         throw new AppError(405, 'method', 'Metode permintaan tidak tersedia.');
       }
+      if (pathname === '/api/catalogs/indices') {
+        await requireAdministrator();
+        if (req.method !== 'PUT') throw new AppError(405, 'method', 'Metode permintaan tidak tersedia.');
+        await requireCsrf();
+        const body = await readBody(req, Math.min(config.bodyLimit, 4096));
+        return sendJson(res, 200, await store.putMaterialIndices(body.value, body.revision));
+      }
       if (pathname === '/api/catalogs') {
         await requireSession();
         if (req.method === 'GET') return sendJson(res, 200, await store.getCatalogs());

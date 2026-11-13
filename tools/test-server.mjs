@@ -483,12 +483,13 @@ try {
     await test('Managed indices persist and reject deletion while referenced by products', async () => {
       let current=(await request('/api/catalogs',admin)).json;
       const value=clone(current.value);value.materials.indexOptions=[...new Set([...value.materials.products.map(p=>p.index),'1.70'])].sort();
-      let result=await request('/api/catalogs',{...admin,method:'PUT',body:{value,revision:current.revision}});assert.equal(result.status,200,result.text);
+      let result=await request('/api/catalogs/indices',{...admin,method:'PUT',body:{value:value.materials.indexOptions,revision:current.revision}});assert.equal(result.status,200,result.text);
+      assert.deepEqual(result.json.value,{...current.value,materials:{...current.value.materials,indexOptions:value.materials.indexOptions}});
       current=(await request('/api/catalogs',admin)).json;assert(current.value.materials.indexOptions.includes('1.70'));
       const bad=clone(current.value);bad.materials.indexOptions=bad.materials.indexOptions.filter(n=>n!=='1.60');
-      result=await request('/api/catalogs',{...admin,method:'PUT',body:{value:bad,revision:current.revision}});assert.equal(result.status,422,result.text);
+      result=await request('/api/catalogs/indices',{...admin,method:'PUT',body:{value:bad.materials.indexOptions,revision:current.revision}});assert.equal(result.status,422,result.text);
       value.materials.indexOptions=value.materials.indexOptions.filter(n=>n!=='1.70');
-      result=await request('/api/catalogs',{...admin,method:'PUT',body:{value,revision:current.revision}});assert.equal(result.status,200,result.text);
+      result=await request('/api/catalogs/indices',{...admin,method:'PUT',body:{value:value.materials.indexOptions,revision:current.revision}});assert.equal(result.status,200,result.text);
       assert(!(await store.getCatalogs()).value.materials.indexOptions.includes('1.70'));
     });
     await test('Administrators manage login accounts and users cannot mutate shared masters', async () => {

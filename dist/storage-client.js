@@ -47,6 +47,7 @@
         const response = await this.fetch(this.apiBase + path, {method, headers,
           credentials:'same-origin', cache:'no-store', signal:controller.signal,
           ...(body === undefined ? {} : {body:JSON.stringify(body)})});
+        if (response.status === 413) throw error('Permintaan terlalu besar untuk server (HTTP 413). Periksa batas ukuran permintaan pada reverse proxy.', 'BODY_TOO_LARGE', 413);
         let payload;
         try { payload = await response.json(); }
         catch { throw error('Respons server tidak valid. Periksa layanan aplikasi.', 'INVALID_RESPONSE', response.status); }
@@ -121,6 +122,12 @@
     }
     getCatalogs() { return this.catalogs === null ? null : JSON.parse(JSON.stringify(this.catalogs)); }
     getCatalogRevision() { return this.mode === 'mysql' ? this.documents.get(CATALOG_KEY)?.revision ?? null : null; }
+    async saveMaterialIndices(indices) {
+      if (!this.loaded) throw error('Master belum dimuat.', 'NOT_INITIALIZED');
+      const value = this.getCatalogs();
+      value.materials.indexOptions = indices;
+      return this.saveCatalogs(value, { materialIndices: true });
+    }
     async saveCatalogs(value,options = {}) {
       if (!this.loaded) throw error('Master belum dimuat.', 'NOT_INITIALIZED');
       if (this.mode === 'browser') {
@@ -169,7 +176,8 @@
           if (!current) throw error('Data server belum dimuat.', 'NOT_INITIALIZED');
           if (!this._sameValue(key,current.value,value)) {
             let saved;
-            try { saved = await this._request(this._documentPath(key), {method:'PUT',body:{value,revision:current.revision,...(options.deletion?{deletion:options.deletion}:{})}}); }
+            const indicesOnly = key === CATALOG_KEY && options.materialIndices === true;
+            try { saved = await this._request(indicesOnly ? '/catalogs/indices' : this._documentPath(key), {method:'PUT',body:{value:indicesOnly ? value.materials.indexOptions : value,revision:current.revision,...(options.deletion?{deletion:options.deletion}:{})}}); }
             catch (e) {
               // A lost HTTP acknowledgement may still mean the transaction committed.
               // A read can confirm exactly that value without issuing another write.

@@ -333,6 +333,16 @@ sudo journalctl -u leinz-lens-studio -n 100 --no-pager
 
 ### Contoh reverse proxy Nginx
 
+Tambah/hapus Indeks Bahan memakai `PUT /api/catalogs/indices`, dengan payload
+hanya daftar indeks dan revisi master (umumnya kurang dari 1 KB). Pastikan kode
+frontend dan backend diperbarui bersamaan, lalu restart layanan Node.js dan muat
+ulang browser. Perubahan ini tidak memerlukan migrasi database baru.
+
+Jika operasi impor atau penyimpanan master lengkap menampilkan HTTP 413,
+pastikan `client_max_body_size 8m;` berlaku pada konfigurasi server/location yang
+melayani aplikasi. Respons HTML dari Nginx untuk 413 sekarang ditampilkan sebagai
+pesan ukuran permintaan, bukan kesalahan JSON.
+
 Contoh HTTP internal berikut memakai nama ilustratif `lensa.example.internal`. Ganti dengan DNS sebenarnya dan set `APP_URL` ke origin yang sama:
 
 ```nginx

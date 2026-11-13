@@ -51,7 +51,7 @@
       const checked=global.LeinzCatalogModel.validateCatalogBundle(next);
       if(!checked.ok){this.message(checked.errors.join(' '),true);return;}
       this.setBusy(true);
-      try{const saved=await this.storage.saveCatalogs(checked.value);this.onCatalogs(saved);this.dirty=false;this.render();this.message('Pilihan indeks bahan tersimpan.');}
+      try{const saved=await this.storage.saveMaterialIndices(checked.value.materials.indexOptions);this.onCatalogs(saved);this.dirty=false;this.render();this.message('Pilihan indeks bahan tersimpan.');}
       catch(error){this.message(error.message,true);}
       finally{this.setBusy(false);}
     }

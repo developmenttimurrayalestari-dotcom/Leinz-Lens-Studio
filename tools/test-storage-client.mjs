@@ -47,6 +47,15 @@ function mysqlFixture(intercept = () => undefined) {
       catalogs: documents.catalogs.value, catalogRevision:documents.catalogs.revision,
       documents, user, csrfToken
     });
+    if (request.path === '/api/catalogs/indices' && request.method === 'PUT') {
+      const current = documents.catalogs;
+      if (request.body.revision !== current.revision) return response(409, {
+        error: { code: 'revision_conflict', message: 'Data changed on another device.' }, document: current
+      });
+      const value = copy(current.value); value.materials.indexOptions = copy(request.body.value);
+      documents.catalogs = { value, revision: current.revision + 1 };
+      return response(200, documents.catalogs);
+    }
     const key = request.path.split('/').at(-1);
     if (!documents[key]) return response(404, { error: { code: 'not_found', message: 'Unknown fixture route' } });
     if (request.method === 'GET') return response(200, documents[key]);
@@ -78,6 +87,73 @@ function mysqlFixture(intercept = () => undefined) {
   fixture.puts = () => requests.filter(request => request.method === 'PUT');
   return fixture;
 }
+
+test('adding or removing indices sends a small request behind a proxy body limit', async () => {
+  const fixture = mysqlFixture(request => {
+    if (Buffer.byteLength(request.options.body || '') > 1024 * 1024) return {
+      ok:false, status:413, async json() { throw SyntaxError('nginx HTML response'); }
+    };
+  });
+  fixture.documents.catalogs.value.materials.rules = [{ source:'x'.repeat(2 * 1024 * 1024) }];
+  await fixture.ready();
+  const initial = fixture.adapter.getCatalogs();
+  const added = await fixture.adapter.saveMaterialIndices(['1.60','1.70']);
+  assert.deepEqual(added.materials.indexOptions,['1.60','1.70']);
+  assert.deepEqual(added.materials.rules,initial.materials.rules);
+  assert.equal(fixture.adapter.getCatalogRevision(),1);
+  await fixture.adapter.saveMaterialIndices(['1.60']);
+  assert.deepEqual(fixture.adapter.getCatalogs().materials.indexOptions,['1.60']);
+  for (const request of fixture.puts()) {
+    assert.equal(request.path,'/api/catalogs/indices');
+    assert(Buffer.byteLength(request.options.body)<1024);
+    assert.deepEqual(Object.keys(request.body).sort(),['revision','value']);
+    assert.equal(request.options.headers['X-CSRF-Token'],fixture.csrfToken);
+  }
+  assert.equal(fixture.adapter.getCatalogRevision(),2);
+  assert.equal(fixture.adapter.status().pending,false);
+  assert.deepEqual(fixture.localCalls,[]);
+});
+
+test('index retries retain the compact endpoint and reconcile a lost acknowledgement',async()=>{
+  let offline=true,loseAck=false;
+  const fixture=await mysqlFixture((request,context)=>{
+    if(request.path==='/api/catalogs/indices'&&request.method==='PUT') {
+      if(offline)throw TypeError('Offline');
+      if(loseAck){loseAck=false;context.defaultRequest(request);throw TypeError('Lost response after commit');}
+    }
+  }).ready();
+  await assert.rejects(fixture.adapter.saveMaterialIndices(['1.60','1.70']),e=>e.code==='NETWORK_ERROR');
+  assert.equal(fixture.adapter.status().pending,true);assert.equal(fixture.adapter.getCatalogRevision(),0);
+  offline=false;loseAck=true;
+  await fixture.adapter.retryPending();
+  assert.equal(fixture.adapter.getCatalogRevision(),1);
+  assert.deepEqual(fixture.adapter.getCatalogs().materials.indexOptions,['1.60','1.70']);
+  assert.equal(fixture.adapter.status().pending,false);
+  assert.equal(fixture.puts().length,2);
+  for(const request of fixture.puts()){assert.equal(request.path,'/api/catalogs/indices');assert(Array.isArray(request.body.value));}
+});
+
+test('index conflicts load the current full catalog without overwriting another edit',async()=>{
+  const fixture=await mysqlFixture().ready();
+  fixture.documents.catalogs.value.tints.items.push({code:'OTHER-EDIT'});
+  fixture.documents.catalogs.revision++;
+  await assert.rejects(fixture.adapter.saveMaterialIndices(['1.60','1.70']),e=>e.status===409);
+  assert.equal(fixture.adapter.getCatalogRevision(),1);
+  assert.equal(fixture.adapter.getCatalogs().tints.items[0].code,'OTHER-EDIT');
+  assert.equal(fixture.adapter.status().conflict,true);
+  assert.equal(fixture.documents.catalogs.value.materials.indexOptions,undefined);
+});
+
+test('a proxy HTML 413 is reported explicitly without a misleading JSON error',async()=>{
+  const fixture=await mysqlFixture(request=>request.method==='PUT'?{
+    ok:false,status:413,async json(){throw SyntaxError('nginx HTML');}
+  }:undefined).ready();
+  const value=fixture.adapter.getCatalogs();value.tints.items.push({code:'EDIT'});
+  await assert.rejects(fixture.adapter.saveCatalogs(value),e=>e.status===413&&e.code==='BODY_TOO_LARGE'&&/413/.test(e.message));
+  assert.equal(fixture.puts().length,1);
+  assert.equal(fixture.adapter.getCatalogRevision(),0);
+  assert.equal(fixture.adapter.status().pending,true);
+});
 
 test('master catalogs use the dedicated atomic endpoint and acknowledged revision', async () => {
   const fixture = await mysqlFixture().ready();
