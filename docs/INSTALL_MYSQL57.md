@@ -338,10 +338,29 @@ hanya daftar indeks dan revisi master (umumnya kurang dari 1 KB). Pastikan kode
 frontend dan backend diperbarui bersamaan, lalu restart layanan Node.js dan muat
 ulang browser. Perubahan ini tidak memerlukan migrasi database baru.
 
-Jika operasi impor atau penyimpanan master lengkap menampilkan HTTP 413,
+Impor Excel/CSV/JSON dan penyimpanan master lengkap tetap memakai
+`PUT /api/catalogs`. Permintaan JSON dengan panjang minimal 262.144 karakter dikompresi gzip
+secara otomatis pada browser yang menyediakan `CompressionStream`. Katalog
+bawaan sekitar 5,6 MB menjadi sekitar 267 KB saat dikirim. Backend menerima
+`Content-Encoding: gzip` dan membatasi ukuran sebelum maupun sesudah
+dekompresi ke batas API 8 MiB. Validasi, revisi, serta transaksi penyimpanan
+tetap berlaku. Tidak diperlukan migrasi database tambahan.
+
+Untuk mengaktifkan perbaikan upload, perbarui **`dist/storage-client.js` dan
+`server/app.mjs` bersamaan**, restart layanan Node.js, lalu muat ulang browser
+dengan Ctrl+F5. Mengganti frontend saja belum cukup karena backend lama belum
+membaca body gzip.
+
+Jika operasi impor atau penyimpanan master lengkap masih menampilkan HTTP 413,
 pastikan `client_max_body_size 8m;` berlaku pada konfigurasi server/location yang
-melayani aplikasi. Respons HTML dari Nginx untuk 413 sekarang ditampilkan sebagai
-pesan ukuran permintaan, bukan kesalahan JSON.
+melayani aplikasi, termasuk browser yang tidak menyediakan kompresi otomatis.
+Pada hosting `simulator.leinz.id`, tambahkan direktif tersebut ke blok `server`
+yang aktif untuk domain itu; jika `location /api/` menetapkan batas tersendiri,
+sesuaikan juga batas di sana. Periksa konfigurasi dengan `nginx -t` lalu reload
+Nginx. Pengaturan `gzip on` untuk respons bukan pengaturan batas upload.
+Lihat [dokumentasi client_max_body_size](https://nginx.org/en/docs/http/ngx_http_core_module.html#client_max_body_size).
+Respons HTML dari Nginx untuk 413 ditampilkan sebagai pesan ukuran permintaan,
+bukan kesalahan JSON.
 
 Contoh HTTP internal berikut memakai nama ilustratif `lensa.example.internal`. Ganti dengan DNS sebenarnya dan set `APP_URL` ke origin yang sama:
 

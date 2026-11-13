@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { test } from 'node:test';
+import { gunzipSync } from 'node:zlib';
 
 const require = createRequire(import.meta.url);
 const { LeinzStorage } = require('../dist/storage-client.js');
@@ -77,7 +78,7 @@ function mysqlFixture(intercept = () => undefined) {
     onStatus: value => statuses.push(copy(value)),
     fetchImpl: async (path, options = {}) => {
       const request = { path, method: options.method || 'GET', options,
-        body: options.body === undefined ? undefined : JSON.parse(options.body) };
+        body: options.body === undefined ? undefined : JSON.parse(options.headers?.['Content-Encoding'] === 'gzip' ? gunzipSync(options.body).toString('utf8') : options.body) };
       requests.push(request);
       const overridden = await intercept(request, fixture);
       return overridden === undefined ? fixture.defaultRequest(request) : overridden;

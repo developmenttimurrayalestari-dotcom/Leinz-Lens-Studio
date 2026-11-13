@@ -44,9 +44,17 @@
         const headers = {'Accept':'application/json'};
         if (body !== undefined) headers['Content-Type'] = 'application/json';
         if (method !== 'GET' && csrf && this.csrfToken) headers['X-CSRF-Token'] = this.csrfToken;
+        let requestBody = body === undefined ? undefined : JSON.stringify(body);
+        // Large master imports include historical provenance and unchanged rows.
+        // Compress the complete transaction before it reaches the reverse proxy.
+        if (path === '/catalogs' && method === 'PUT' && requestBody?.length >= 256 * 1024 && typeof global.CompressionStream === 'function') {
+          const input = new global.Blob([requestBody]);
+          const compressed = new Uint8Array(await new global.Response(input.stream().pipeThrough(new global.CompressionStream('gzip'))).arrayBuffer());
+          if (compressed.byteLength < input.size) { requestBody = compressed; headers['Content-Encoding'] = 'gzip'; }
+        }
         const response = await this.fetch(this.apiBase + path, {method, headers,
           credentials:'same-origin', cache:'no-store', signal:controller.signal,
-          ...(body === undefined ? {} : {body:JSON.stringify(body)})});
+          ...(requestBody === undefined ? {} : {body:requestBody})});
         if (response.status === 413) throw error('Permintaan terlalu besar untuk server (HTTP 413). Periksa batas ukuran permintaan pada reverse proxy.', 'BODY_TOO_LARGE', 413);
         let payload;
         try { payload = await response.json(); }

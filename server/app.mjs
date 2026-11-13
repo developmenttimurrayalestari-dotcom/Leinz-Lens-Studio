@@ -1,10 +1,13 @@
 import { createServer } from 'node:http';
 import { readFile, stat, realpath } from 'node:fs/promises';
 import { resolve, sep, extname } from 'node:path';
+import { gunzip } from 'node:zlib';
+import { promisify } from 'node:util';
 import { APP_VERSION, PROJECT_ROOT } from './config.mjs';
 import { AppError } from './errors.mjs';
 import { username, validatePassword, validateRole, verifyPassword, readSessionToken, sessionCookie, equalSecret, LoginLimiter } from './auth.mjs';
 import { isObject, checkJson } from './validation.mjs';
+const decodeGzip = promisify(gunzip);
 
 const TYPES = { '.csv': 'text/csv; charset=utf-8', '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', '.txt': 'text/plain; charset=utf-8', '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json; charset=utf-8', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.woff2': 'font/woff2' };
 function sendJson(res, status, value, headers = {}) {
@@ -13,6 +16,8 @@ function sendJson(res, status, value, headers = {}) {
 }
 function readBody(req, limit) {
   if (!/^application\/json(?:\s*;|$)/i.test(req.headers['content-type'] || '')) throw new AppError(415, 'content_type', 'Gunakan Content-Type application/json.');
+  const encoding = String(req.headers['content-encoding'] || 'identity').trim().toLowerCase();
+  if (!['identity', 'gzip'].includes(encoding)) throw new AppError(415, 'content_encoding', 'Encoding permintaan harus identity atau gzip.');
   return new Promise((resolveBody, reject) => {
     const chunks = []; let size = 0, settled = false;
     const fail = error => { if (settled) return; settled = true; chunks.length = 0; reject(error); };
@@ -22,10 +27,20 @@ function readBody(req, limit) {
       if (size > limit) { fail(new AppError(413, 'body_too_large', 'Data permintaan melebihi batas ukuran.')); return; }
       chunks.push(chunk);
     });
-    req.on('end', () => {
+    req.on('end', async () => {
       if (settled) return;
       try {
-        const value = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+        let bytes = Buffer.concat(chunks);
+        chunks.length = 0;
+        if (encoding === 'gzip') {
+          try { bytes = await decodeGzip(bytes, { maxOutputLength: limit }); }
+          catch (error) {
+            if (error.code === 'ERR_BUFFER_TOO_LARGE') throw new AppError(413, 'body_too_large', 'Data permintaan setelah dekompresi melebihi batas ukuran.');
+            throw new AppError(400, 'invalid_gzip', 'Data gzip permintaan tidak valid.');
+          }
+        }
+        if (settled) return;
+        const value = JSON.parse(bytes.toString('utf8'));
         if (!isObject(value)) throw new AppError(400, 'invalid_json', 'Permintaan JSON harus berupa objek.');
         checkJson(value); settled = true; resolveBody(value);
       } catch (error) { fail(error instanceof AppError ? error : new AppError(400, 'invalid_json', 'JSON permintaan tidak valid.')); }

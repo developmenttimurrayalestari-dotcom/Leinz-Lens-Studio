@@ -128,6 +128,15 @@ Biarkan **`override_reference=FALSE`** untuk pembaruan biasa. Mengubah preview t
 
 ## 6. Batas impor dan master bawaan
 
+Pada mode MySQL, tombol **Terapkan perubahan master** mengirim hasil katalog
+yang sudah ditinjau ke `/api/catalogs`, termasuk data master yang dipertahankan
+dan riwayat sumbernya. Ukuran permintaan dapat lebih besar dari berkas Excel.
+Permintaan katalog besar kini dikompresi gzip sebelum dikirim pada browser
+yang mendukungnya; data tetap divalidasi dan disimpan dalam satu transaksi.
+Backend membatasi hasil dekompresi ke 8 MiB. Jika masih terjadi HTTP 413, ikuti
+[pengaturan batas upload Nginx](INSTALL_MYSQL57.md#contoh-reverse-proxy-nginx).
+Perbarui frontend/backend bersamaan dan restart Node.js sebelum mengimpor ulang.
+
 | Batas | Nilai |
 |---|---:|
 | Ukuran satu berkas | 8 MiB |
