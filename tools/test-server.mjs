@@ -363,7 +363,7 @@ try {
       assert.deepEqual((await request('/api/catalogs',admin)).json.value,catalogs);
       const [usersAfter]=await pool.query('SELECT id, username, password_hash, active FROM leinz_users ORDER BY id');assert.deepEqual(usersAfter,usersBefore);
       const doctor=await cli('doctor');assert.equal(doctor.code,0,doctor.stderr);const report=JSON.parse(doctor.stdout);
-      assert.equal(report.schemaVersion,4);assert.equal(report.tables,TABLES.length);
+      assert.equal(report.schemaVersion,5);assert.equal(report.tables,TABLES.length);
       assert.deepEqual(report.masterCounts,{products:91,blanks:796,powerRules:6829,frameShapes:13,tinting:66,skus:3});
       for(const key of ['materials','shapes','tints'])assert.equal(report.catalogContentSha256[key],catalogDigest(catalogs[key]));
     });
@@ -479,6 +479,40 @@ try {
       assert.equal((await getDoc('saved', admin)).value.length, 1);
       assert.equal((await getDoc('skus', other)).value.skus.length, 3);
       assert.equal((await request('/api/catalogs',admin)).json.value.materials.products.length,92);
+    });
+    await test('Managed indices persist and reject deletion while referenced by products', async () => {
+      let current=(await request('/api/catalogs',admin)).json;
+      const value=clone(current.value);value.materials.indexOptions=[...new Set([...value.materials.products.map(p=>p.index),'1.70'])].sort();
+      let result=await request('/api/catalogs',{...admin,method:'PUT',body:{value,revision:current.revision}});assert.equal(result.status,200,result.text);
+      current=(await request('/api/catalogs',admin)).json;assert(current.value.materials.indexOptions.includes('1.70'));
+      const bad=clone(current.value);bad.materials.indexOptions=bad.materials.indexOptions.filter(n=>n!=='1.60');
+      result=await request('/api/catalogs',{...admin,method:'PUT',body:{value:bad,revision:current.revision}});assert.equal(result.status,422,result.text);
+      value.materials.indexOptions=value.materials.indexOptions.filter(n=>n!=='1.70');
+      result=await request('/api/catalogs',{...admin,method:'PUT',body:{value,revision:current.revision}});assert.equal(result.status,200,result.text);
+      assert(!(await store.getCatalogs()).value.materials.indexOptions.includes('1.70'));
+    });
+    await test('Administrators manage login accounts and users cannot mutate shared masters', async () => {
+      const password=randomBytes(20).toString('hex'),newPassword=randomBytes(20).toString('hex');
+      const body={username:'qaoperator',password,role:'user'};
+      let result=await request('/api/users',{...admin,method:'POST',body});assert.equal(result.status,201,result.text);assert.equal(result.json.user.role,'user');
+      const id=result.json.user.id;
+      result=await request('/api/users',{...admin,method:'POST',body});assert.equal(result.status,409);
+      let operator=await login('qaoperator',password);assert.equal(operator.user.role,'user');
+      assert.equal((await request('/api/bootstrap',operator)).status,200);
+      for(const [path,method] of [['/api/users','GET'],['/api/users','POST'],['/api/users/'+id,'PUT'],['/api/catalogs','PUT'],['/api/documents/skus','PUT']])assert.equal((await request(path,{...operator,method,...(method==='GET'?{}:{body:{}})})).status,403,path);
+      let doc=await getDoc('state',operator);assert.equal((await putDoc('state',null,doc.revision,operator)).status,200);
+      result=await request('/api/users',admin);assert.equal(result.status,200);assert(result.json.users.every(u=>!u.password_hash&&!u.password));
+      result=await request('/api/users/'+admin.user.id,{...admin,method:'PUT',body:{username:'qaadmin',role:'user',active:true}});assert.equal(result.status,422);
+      result=await request('/api/users/'+id,{...admin,method:'PUT',body:{username:'qaoperator',role:'administrator',active:true,password:''}});assert.equal(result.status,200,result.text);
+      assert.equal((await request('/api/bootstrap',operator)).status,401);
+      operator=await login('qaoperator',password);assert.equal(operator.user.role,'administrator');assert.equal((await request('/api/users',operator)).status,200);
+      result=await request('/api/users/'+id,{...admin,method:'PUT',body:{username:'qaoperator',role:'user',active:true,password:newPassword}});assert.equal(result.status,200,result.text);
+      assert.equal((await request('/api/bootstrap',operator)).status,401);
+      assert.equal((await request('/api/session',{method:'POST',body:{username:'qaoperator',password}})).status,401);
+      operator=await login('qaoperator',newPassword);assert.equal(operator.user.role,'user');
+      result=await request('/api/users/'+id,{...admin,method:'PUT',body:{username:'qaoperator',role:'user',active:false}});assert.equal(result.status,200,result.text);
+      assert.equal((await request('/api/bootstrap',operator)).status,401);
+      assert.equal((await request('/api/session',{method:'POST',body:{username:'qaoperator',password:newPassword}})).status,401);
     });
     await test('Expired and logged-out sessions cannot access or mutate data', async () => {
       await pool.execute('UPDATE leinz_sessions SET expires_at = DATE_SUB(UTC_TIMESTAMP(), INTERVAL 1 HOUR) WHERE user_id = ?', [other.user.id]);

@@ -1,0 +1,6 @@
+.admin-form{display:flex;align-items:end;gap:16px;margin:24px 0;flex-wrap:wrap}
+.admin-form label,.admin-user-form label{display:flex;flex-direction:column;gap:8px}
+.admin-form input{min-width:200px}
+.admin-user-form{padding:20px 0;border-bottom:1px solid var(--line,#e1e6da);margin-bottom:20px}
+.admin-user-form .mm-check{flex-direction:row;align-items:center}
+#admin-manager-root .mm-shell>h2{margin-top:0}

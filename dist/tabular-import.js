@@ -74,10 +74,10 @@
     }
     fail('Isi TRUE/FALSE atau 1/0.',row,key);
   }
-  function indexCell(row,key='index',{optional=false}={}) {
+  function indexCell(row,key='index',{optional=false,indices=INDICES}={}) {
     if(blank(row.values[key])&&optional)return null;
-    const n=numberCell(row,key,1.3,2),s=n.toFixed(2);
-    if(Math.abs(n-Number(s))>1e-8||!INDICES.includes(s))fail('Indeks yang tersedia: '+INDICES.join(', ')+'.',row,key);
+    const n=numberCell(row,key,1.01,2.5),s=n.toFixed(2);
+    if(Math.abs(n-Number(s))>1e-8||!indices.includes(s))fail('Indeks yang tersedia: '+indices.join(', ')+'.',row,key);
     return s;
   }
   function hexCell(row,key) {
@@ -246,6 +246,7 @@
   }
   function importMaterials(current,rows,parsed,now) {
     const out=clone(current),m=out.materials,issues=collector();
+    const indices=model().materialIndices(m);
     const ids=new Map(m.products.map(p=>[p.id,p])),products=new Map();
     for(const p of m.products){const key=productKey(p.supplier,p.code);if(!products.has(key))products.set(key,[]);products.get(key).push(p);}
     const blankIds=new Map(m.blanks.map(b=>[b.id,b])),blanks=new Map();
@@ -255,15 +256,15 @@
       const supplier=stringCell(row,'supplier',80),code=stringCell(row,'LensCode',80),name=stringCell(row,'Descr',200);
       const key=productKey(supplier,code),known=products.get(key)||[];
       if(known.length>1)fail('Supplier dan LensCode mengarah ke beberapa produk. Perbaiki identitas master terlebih dahulu.',row,'LensCode');
-      const old=known[0],explicit=indexCell(row,'index',{optional:true});
+      const old=known[0],explicit=indexCell(row,'index',{optional:true,indices});
       const describedNumbers=[...new Set((name.match(/(?<![0-9])1[.,][0-9]+(?![0-9])/g)||[]).map(n=>Number(n.replace(',','.'))))];
       const described=describedNumbers.map(n=>n.toFixed(2));
-      if(describedNumbers.some((n,i)=>Math.abs(n-Number(described[i]))>1e-8||!INDICES.includes(described[i])))fail('Indeks pada Descr tidak termasuk indeks katalog yang didukung; nilai tidak dibulatkan otomatis.',row,'Descr');
+      if(describedNumbers.some((n,i)=>Math.abs(n-Number(described[i]))>1e-8||!indices.includes(described[i])))fail('Indeks pada Descr tidak termasuk indeks katalog yang didukung; nilai tidak dibulatkan otomatis.',row,'Descr');
       const index=explicit||old?.index||(described.length===1?described[0]:null);
-      if(!index||!INDICES.includes(index))fail('Indeks produk baru tidak jelas. Tambahkan kolom index atau satu indeks yang valid pada Descr.',row,'Descr');
+      if(!index||!indices.includes(index))fail('Indeks produk baru tidak jelas. Tambahkan kolom index atau satu indeks yang valid pada Descr.',row,'Descr');
       if(old&&old.index!==index)fail('Indeks berbeda dari produk yang sudah ada. Gunakan LensCode baru atau perbaiki berkas.',row,'index');
       if(described.length>1||described.length===1&&described[0]!==index)fail('Indeks pada Descr bertentangan atau ambigu terhadap index/produk yang dikenal.',row,'Descr');
-      const p=old?updatedRecord(old,{name},now):{id:newId(supplier+':'+code,'material',key,ids,p=>p.supplier===supplier&&p.code===code),supplier,code,name,index,activeForSimulator:!['1.59','1.61'].includes(index),active:true,source:'tabular-import',managedAt:now};
+      const p=old?updatedRecord(old,{name},now):{id:newId(supplier+':'+code,'material',key,ids,p=>p.supplier===supplier&&p.code===code),supplier,code,name,index,activeForSimulator:model().SIMULATOR_INDICES.includes(index),active:true,source:'tabular-import',managedAt:now};
       const priorProduct=seenProducts.get(key);
       if(priorProduct&&(priorProduct.product.name!==name||priorProduct.product.index!==index))fail('Deskripsi/indeks tidak konsisten dengan baris '+priorProduct.row.row+' untuk supplier + LensCode yang sama.',row,'Descr');
       const baseCurve=numberCell(row,'base_curve',0,30),diameter=numberCell(row,'diameter',20,150),ct=numberCell(row,'center_thickness',.1,50),et=numberCell(row,'edge_thickness',.1,50);

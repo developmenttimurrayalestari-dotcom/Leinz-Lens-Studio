@@ -4,6 +4,8 @@
   const SCHEMA = 'trl-master-catalogs/1.0';
   const INDICES = Object.freeze(['1.50','1.56','1.57','1.59','1.60','1.61','1.67','1.74']);
   const SIMULATOR_INDICES = Object.freeze(INDICES.filter(index => !['1.59','1.61'].includes(index)));
+  const materialIndices = materials => materials.indexOptions === undefined ? [...new Set([...INDICES,...materials.products.map(p=>p?.index)])].sort() : materials.indexOptions;
+  const validMaterialIndex = value => typeof value === 'string' && /^\d\.\d{2}$/.test(value) && Number(value)>1 && Number(value)<=2.5;
   const GROUPS = Object.freeze(['fashion','sunglass','therapeutic','special']);
   const isObject = value => value !== null && typeof value === 'object' && !Array.isArray(value);
   const clone = value => JSON.parse(JSON.stringify(value));
@@ -89,6 +91,8 @@
     for(const key of ['materials','shapes','tints'])if(!isObject(input[key])||input[key].schemaVersion!==1)add('Schema katalog '+key+' harus versi 1.');
     if(errors.length)return {ok:false,errors,value:null};
     const {materials,shapes,tints}=input;
+    const indices=materialIndices({...materials,products:Array.isArray(materials.products)?materials.products:[]});
+    if(!Array.isArray(indices)||!indices.length||indices.length>100||indices.some(n=>!validMaterialIndex(n))||new Set(indices).size!==indices.length)add('Indeks bahan harus unik, antara 1.01 dan 2.50, maksimal 100 pilihan.');
     const lists=[['produk',materials.products,1000],['blank',materials.blanks,10000],['aturan power',materials.rules,20000],['shape',shapes.items,200],['tint',tints.items,1000]];
     for(const [label,items,max]of lists)if(!Array.isArray(items)||items.length>max)add('Daftar '+label+' tidak valid atau melebihi batas '+max+'.');
     if(errors.length)return {ok:false,errors,value:null};
@@ -111,7 +115,7 @@
       if(!text(p.supplier,80))add(label+': supplier wajib diisi, maksimal 80 karakter.');
       if(!text(p.code,80))add(label+': kode wajib diisi, maksimal 80 karakter.');
       if(!text(p.name,200))add(label+': nama wajib diisi, maksimal 200 karakter.');
-      if(!INDICES.includes(p.index))add(label+': indeks tidak tersedia dalam katalog.');
+      if(!Array.isArray(indices)||!indices.includes(p.index))add(label+': indeks tidak tersedia dalam katalog. Indeks yang masih dipakai produk tidak dapat dihapus.');
       if(typeof p.activeForSimulator!=='boolean')add(label+': activeForSimulator harus boolean.');
       if(p.activeForSimulator&&!SIMULATOR_INDICES.includes(p.index))add(label+': indeks '+p.index+' hanya untuk katalog, bukan enam indeks simulator.');
       if(p.opticalProfile!==undefined){const checked=validateOpticalProfile(p.opticalProfile);checked.errors.forEach(e=>add(label+': '+e));}
@@ -197,7 +201,7 @@
     if(!result.ok)throw Object.assign(new Error(result.errors.join(' ')),{errors:result.errors});
     return result.value;
   }
-  const api={SCHEMA,INDICES,SIMULATOR_INDICES,GROUPS,active,validId,validateOpticalProfile,contourProblem,validateCatalogBundle,validateCatalogs,deleteItems,summarizeCatalogs};
+  const api={SCHEMA,INDICES,SIMULATOR_INDICES,materialIndices,validMaterialIndex,GROUPS,active,validId,validateOpticalProfile,contourProblem,validateCatalogBundle,validateCatalogs,deleteItems,summarizeCatalogs};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;
   global.LeinzCatalogModel=api;
 })(typeof window!=='undefined'?window:globalThis);

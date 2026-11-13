@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS leinz_users (
   id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
   username VARCHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
   password_hash VARCHAR(255) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  role VARCHAR(16) CHARACTER SET ascii COLLATE ascii_bin NOT NULL DEFAULT 'user',
   active TINYINT UNSIGNED NOT NULL DEFAULT 1,
   created_at DATETIME NOT NULL,
   UNIQUE KEY uq_leinz_username (username)

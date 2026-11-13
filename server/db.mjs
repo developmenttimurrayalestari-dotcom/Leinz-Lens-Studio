@@ -5,7 +5,7 @@ import { createHash } from 'node:crypto';
 import { PROJECT_ROOT } from './config.mjs';
 import { AppError } from './errors.mjs';
 import { validateDocument, validateRevision, validateMasterCatalogs, validateMasterDeletion } from './validation.mjs';
-import { username, hashPassword, tokenHash, newToken, newCsrf } from './auth.mjs';
+import { username, hashPassword, validateRole, tokenHash, newToken, newCsrf } from './auth.mjs';
 import { REL_TABLES, readRelational, writeRelational, assertPreserved, documentId } from './relational.mjs';
 
 export const TABLES = ['leinz_schema_migrations', 'leinz_users', 'leinz_sessions', 'leinz_catalog_documents', 'leinz_catalog_revision', 'leinz_workspace_documents', 'leinz_user_documents', ...REL_TABLES];
@@ -38,7 +38,7 @@ export async function inspectDatabase(pool, { requireSchema = true, requireSeed 
   if (present.has('leinz_schema_migrations')) {
     const [[version]] = await pool.query('SELECT MAX(version) AS version FROM leinz_schema_migrations'); schemaVersion = Number(version.version || 0);
   }
-  if (requireSchema && schemaVersion < 4) throw Error('Skema perlu diperbarui. Jalankan npm run db:migrate untuk range SKU per diameter (skema 4).');
+  if (requireSchema && schemaVersion < 5) throw Error('Skema perlu diperbarui. Jalankan npm run db:migrate untuk level akun (skema 5).');
   if (present.has('leinz_catalog_documents')) {
     const [[count]] = await pool.query('SELECT COUNT(*) AS n FROM leinz_catalog_documents'); catalogCount = Number(count.n);
   }
@@ -126,6 +126,8 @@ export async function migrate(pool) {
     }
     await backfillRelational(connection);
     await connection.query('INSERT IGNORE INTO leinz_schema_migrations (version,applied_at) VALUES (4,UTC_TIMESTAMP())');
+    const rolesSql = await readFile(resolve(PROJECT_ROOT, 'database/005_user_roles.sql'), 'utf8');
+    for (const statement of rolesSql.replace(/^\s*--.*$/gm, '').split(';').map(text=>text.trim()).filter(Boolean)) await connection.query(statement);
   } finally {
     try { await connection.query("SELECT RELEASE_LOCK(SHA2(CONCAT(DATABASE(), ':leinz-migrate'), 256))"); } catch { /* connection may have failed */ }
     connection.release();
@@ -169,21 +171,23 @@ export async function seed(pool) {
   finally { connection.release(); }
 }
 
-export async function createUser(pool, name, password) {
+export async function createUser(pool, name, password, role = 'administrator', active = true) {
+  validateRole(role);
+  if (typeof active !== 'boolean') throw new AppError(422, 'invalid_user', 'Status akun harus aktif atau nonaktif.');
   const userName = username(name), hash = await hashPassword(password);
   const connection = await pool.getConnection();
   try {
     await connection.beginTransaction();
-    const [result] = await connection.execute('INSERT INTO leinz_users (username, password_hash, active, created_at) VALUES (?, ?, 1, UTC_TIMESTAMP())', [userName, hash]);
+    const [result] = await connection.execute('INSERT INTO leinz_users (username, password_hash, role, active, created_at) VALUES (?, ?, ?, ?, UTC_TIMESTAMP())', [userName, hash, role, active?1:0]);
     for (const [key, value] of [['state', null], ['saved', []]]) {
       await connection.execute('INSERT INTO leinz_user_documents (user_id, document_key, document_json, revision, updated_at) VALUES (?, ?, ?, 0, UTC_TIMESTAMP())', [result.insertId, key, JSON.stringify(value)]);
       await writeRelational(connection,'user',key,value,result.insertId);
     }
     await connection.commit();
-    return { id: Number(result.insertId), username: userName };
+    return { id: Number(result.insertId), username: userName, role, active };
   } catch (error) {
     await connection.rollback();
-    if (error.code === 'ER_DUP_ENTRY') throw Error('Username sudah terdaftar. Akun lama tidak diubah.');
+    if (error.code === 'ER_DUP_ENTRY') throw new AppError(409, 'username_exists', 'Username sudah terdaftar. Akun lama tidak diubah.');
     throw error;
   } finally { connection.release(); }
 }
@@ -197,17 +201,49 @@ export class MysqlStore {
     validateDocument('skus', doc.value, this.catalogs);
   }
   async health() { await this.pool.query('SELECT 1'); return { database: 'mysql', databaseVersion: this.databaseInfo.version, ready: true }; }
-  async userByName(name) { const [rows] = await this.pool.execute('SELECT id, username, password_hash, active FROM leinz_users WHERE username = ? LIMIT 1', [name]); return rows[0] || null; }
+  async listUsers() {
+    const [rows] = await this.pool.query('SELECT id, username, role, active FROM leinz_users ORDER BY username');
+    return rows.map(row=>({...row,id:Number(row.id),active:!!row.active}));
+  }
+  async addUser(value) { return createUser(this.pool, value.username, value.password, value.role, value.active ?? true); }
+  async updateUser(id, value, actorId) {
+    if (!Number.isSafeInteger(id) || id < 1) throw new AppError(400, 'invalid_user', 'ID akun tidak valid.');
+    let name, role, hash;
+    try {
+      name = username(value.username); role = validateRole(value.role);
+      if (typeof value.active !== 'boolean') throw Error('Status akun harus aktif atau nonaktif.');
+      if (value.password !== undefined && value.password !== '') hash = await hashPassword(value.password);
+    } catch (error) { throw new AppError(422, 'invalid_user', error.message); }
+    const connection = await this.pool.getConnection();
+    try {
+      await connection.beginTransaction();
+      // Lock accounts in a stable order so concurrent edits cannot remove every administrator.
+      const [rows] = await connection.query('SELECT id, role, active FROM leinz_users ORDER BY id FOR UPDATE');
+      const target = rows.find(row=>Number(row.id)===id);
+      if (!target) throw new AppError(404, 'user_not_found', 'Akun tidak ditemukan.');
+      if (id === actorId && (!value.active || role !== 'administrator')) throw new AppError(422, 'self_lockout', 'Akun sendiri harus tetap administrator aktif.');
+      if ((!value.active || role !== 'administrator') && target.role === 'administrator' && Number(target.active) && !rows.some(row=>Number(row.id)!==id && row.role==='administrator' && Number(row.active))) throw new AppError(422, 'last_administrator', 'Pertahankan minimal satu administrator aktif.');
+      await connection.execute('UPDATE leinz_users SET username=?, role=?, active=?' + (hash ? ', password_hash=?' : '') + ' WHERE id=?', [name,role,value.active?1:0,...(hash?[hash]:[]),id]);
+      if (hash || !value.active || target.role!==role) await connection.execute('DELETE FROM leinz_sessions WHERE user_id=?',[id]);
+      await connection.commit();
+      return {id,username:name,role,active:value.active};
+    } catch (error) {
+      await connection.rollback();
+      if (error.code==='ER_DUP_ENTRY') throw new AppError(409,'username_exists','Username sudah terdaftar.');
+      throw error;
+    } finally { connection.release(); }
+  }
+  async userByName(name) { const [rows] = await this.pool.execute('SELECT id, username, password_hash, role, active FROM leinz_users WHERE username = ? LIMIT 1', [name]); return rows[0] || null; }
   async getSession(token) {
     if (!token) return null;
-    const [rows] = await this.pool.execute('SELECT u.id, u.username, s.csrf_token FROM leinz_sessions s INNER JOIN leinz_users u ON u.id = s.user_id WHERE s.token_hash = ? AND s.expires_at > UTC_TIMESTAMP() AND u.active = 1 LIMIT 1', [tokenHash(token)]);
-    return rows[0] ? { user: { id: Number(rows[0].id), username: rows[0].username }, csrfToken: rows[0].csrf_token } : null;
+    const [rows] = await this.pool.execute('SELECT u.id, u.username, u.role, s.csrf_token FROM leinz_sessions s INNER JOIN leinz_users u ON u.id = s.user_id WHERE s.token_hash = ? AND s.expires_at > UTC_TIMESTAMP() AND u.active = 1 LIMIT 1', [tokenHash(token)]);
+    return rows[0] ? { user: { id: Number(rows[0].id), username: rows[0].username, role: rows[0].role }, csrfToken: rows[0].csrf_token } : null;
   }
   async createSession(user) {
     const token = newToken(), csrfToken = newCsrf();
     await this.pool.execute('DELETE FROM leinz_sessions WHERE expires_at <= UTC_TIMESTAMP()');
     await this.pool.execute('INSERT INTO leinz_sessions (token_hash, user_id, csrf_token, expires_at, created_at) VALUES (?, ?, ?, DATE_ADD(UTC_TIMESTAMP(), INTERVAL ? HOUR), UTC_TIMESTAMP())', [tokenHash(token), user.id, csrfToken, this.config.sessionHours]);
-    return { token, csrfToken, user: { id: Number(user.id), username: user.username } };
+    return { token, csrfToken, user: { id: Number(user.id), username: user.username, role: user.role } };
   }
   async removeSession(token) { if (token) await this.pool.execute('DELETE FROM leinz_sessions WHERE token_hash = ?', [tokenHash(token)]); }
   async getCatalogs(connection = this.pool) { return readCatalogs(connection); }

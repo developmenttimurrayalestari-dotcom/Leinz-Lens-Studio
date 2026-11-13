@@ -3,7 +3,7 @@ import { readFile, stat, realpath } from 'node:fs/promises';
 import { resolve, sep, extname } from 'node:path';
 import { APP_VERSION, PROJECT_ROOT } from './config.mjs';
 import { AppError } from './errors.mjs';
-import { username, verifyPassword, readSessionToken, sessionCookie, equalSecret, LoginLimiter } from './auth.mjs';
+import { username, validatePassword, validateRole, verifyPassword, readSessionToken, sessionCookie, equalSecret, LoginLimiter } from './auth.mjs';
 import { isObject, checkJson } from './validation.mjs';
 
 const TYPES = { '.csv': 'text/csv; charset=utf-8', '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', '.txt': 'text/plain; charset=utf-8', '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json; charset=utf-8', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.woff2': 'font/woff2' };
@@ -66,6 +66,11 @@ export function createApp({ store, config, logger = console }) {
         if (!equalSecret(req.headers['x-csrf-token'], value.csrfToken)) throw new AppError(403, 'csrf', 'Token keamanan tidak valid. Muat ulang aplikasi dan coba kembali.');
         return value;
       };
+      const requireAdministrator = async () => {
+        const current = await requireSession();
+        if (current.user.role !== 'administrator') throw new AppError(403, 'administrator_required', 'Menu Manage hanya dapat diakses administrator.');
+        return current;
+      };
       if (pathname === '/api/health' && req.method === 'GET') {
         return sendJson(res, 200, { status: 'ok', version: APP_VERSION, ...(await store.health()) });
       }
@@ -98,10 +103,28 @@ export function createApp({ store, config, logger = console }) {
         const current = await requireSession();
         return sendJson(res, 200, { ...(await store.bootstrap(current.user.id)), user: current.user, csrfToken: current.csrfToken });
       }
+      const userPath = pathname.match(/^\/api\/users(?:\/(\d+))?$/);
+      if (userPath) {
+        const current = await requireAdministrator();
+        if (req.method === 'GET' && !userPath[1]) return sendJson(res, 200, {users:await store.listUsers()});
+        if (req.method === 'POST' && !userPath[1] || req.method === 'PUT' && userPath[1]) {
+          await requireCsrf();
+          const body = await readBody(req, Math.min(config.bodyLimit, 4096));
+          try {
+            username(body.username); validateRole(body.role);
+            if (body.active !== undefined && typeof body.active !== 'boolean') throw Error('Status akun harus aktif atau nonaktif.');
+            if (req.method === 'POST' || body.password !== undefined && body.password !== '') validatePassword(body.password);
+          } catch (error) { throw new AppError(422, 'invalid_user', error.message); }
+          const user = req.method === 'POST' ? await store.addUser(body) : await store.updateUser(Number(userPath[1]), body, current.user.id);
+          return sendJson(res, req.method === 'POST' ? 201 : 200, {user});
+        }
+        throw new AppError(405, 'method', 'Metode permintaan tidak tersedia.');
+      }
       if (pathname === '/api/catalogs') {
         await requireSession();
         if (req.method === 'GET') return sendJson(res, 200, await store.getCatalogs());
         if (req.method === 'PUT') {
+          await requireAdministrator();
           await requireCsrf();
           const body = await readBody(req, config.bodyLimit);
           return sendJson(res, 200, await store.putCatalogs(body.value, body.revision, body.deletion || null));
@@ -113,6 +136,7 @@ export function createApp({ store, config, logger = console }) {
         const current = await requireSession(), key = documentPath[1];
         if (req.method === 'GET') return sendJson(res, 200, await store.getDocument(current.user.id, key));
         if (req.method === 'PUT') {
+          if (key === 'skus') await requireAdministrator();
           await requireCsrf();
           const body = await readBody(req, config.bodyLimit);
           return sendJson(res, 200, await store.putDocument(current.user.id, key, body.value, body.revision));

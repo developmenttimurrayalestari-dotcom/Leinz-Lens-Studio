@@ -7,11 +7,29 @@ sesuai sumber sebagai katalog saja. Master blank/raw material, frame shape,
 tinting, dan SKU mendukung hapus per item maupun banyak item melalui checkbox.
 Referensi SKU/draft/riwayat diperiksa sebelum penghapusan.
 
-Pembaruan penyimpanan: backend sekarang memakai **skema relasional 4** dan tetap
+Pembaruan penyimpanan: backend sekarang memakai **skema 5** (level akun) dan tetap
 mempertahankan JSON lama sebagai cadangan. Sebelum menjalankan server pada
 database existing, ikuti [panduan normalisasi dan migrasi](docs/NORMALISASI_DATABASE.md).
 Jalankan `npm run db:migrate` juga setelah impor paket SQL. Bagian riwayat rilis
 di bawah menjelaskan perilaku versi lama sebelum normalisasi ini.
+
+Administrator dapat mengelola pilihan **Indeks Bahan** serta akun melalui tab
+**Manage User** di menu Manage. Akun berlevel **user** hanya dapat membuka Studio
+Lensa; API juga menolak perubahan katalog, SKU, dan pengelolaan akun dari level
+ini. Administrator dapat membuat akun, mengubah level, mengganti password, dan
+menonaktifkan akun. Akun sendiri harus tetap administrator aktif. Password baru,
+perubahan level, dan penonaktifan mengakhiri sesi akun yang diubah.
+
+Untuk instalasi existing, hentikan server, jalankan `npm run db:migrate`, lalu
+jalankan kembali `npm start`. Migrasi 005 mempertahankan akun lama sebagai
+administrator; administrator pertama pada instalasi baru dibuat dengan
+`npm run admin:create`. Pengelolaan login hanya tersedia pada mode server MySQL,
+sedangkan preview browser tetap dapat dipakai untuk mengelola katalog lokal.
+
+Pilihan indeks bahan menerima nilai unik **1.01–2.50** dengan dua desimal dan
+tersimpan bersama katalog. Indeks yang dipakai produk (termasuk produk arsip)
+tidak dapat dihapus. Indeks tambahan tersedia di form produk dan impor bahan;
+simulator dan SKU tetap memakai enam indeks optik yang sudah didukung.
 
 Konfigurasi indeks SKU kini mendukung beberapa **range power per diameter**.
 Contoh: Ø65 dengan SPH −4 sampai +6 dan Ø70 dengan SPH −8 sampai +2 pada SKU

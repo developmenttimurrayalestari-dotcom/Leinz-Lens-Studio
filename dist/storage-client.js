@@ -51,7 +51,7 @@
         try { payload = await response.json(); }
         catch { throw error('Respons server tidak valid. Periksa layanan aplikasi.', 'INVALID_RESPONSE', response.status); }
         if (!response.ok) {
-          if (response.status === 401) this.authenticated = false;
+          if (response.status === 401) { this.authenticated = false; this._emit(); }
           throw error(payload?.error?.message || 'Permintaan belum berhasil.', payload?.error?.code || 'HTTP_ERROR', response.status, payload?.document || null);
         }
         return payload;
@@ -67,6 +67,8 @@
       this.user = session.user || null; this.csrfToken = session.csrfToken || null;
       this._emit(); return session;
     }
+    async listUsers() { return this._request('/users'); }
+    async saveUser(id, value) { return this._request('/users'+(id?'/'+id:''), {method:id?'PUT':'POST',body:value}); }
     async login(username, password) {
       const previousUser = this.loaded ? this.user?.id : null;
       const session = await this._request('/session', {method:'POST', body:{username,password}, csrf:false});

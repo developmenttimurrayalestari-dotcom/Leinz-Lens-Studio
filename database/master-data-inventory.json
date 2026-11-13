@@ -348,12 +348,12 @@
     "leinz_rel_appearances",
     "leinz_rel_sku_power_ranges"
   ],
-  "schemaVersion": 4,
+  "schemaVersion": 5,
   "requiresVerifiedBackfill": "npm run db:migrate after SQL import; DDL alone records only versions 1 and 2",
   "expectedFreshInstallation": {
     "schemaMigrationRowsAfterSqlImport": 2,
     "relationalDocumentRowsAfterBackfill": 4,
-    "schemaMigrationRows": 4,
+    "schemaMigrationRows": 5,
     "catalogDocumentRows": 3,
     "catalogRevision": 1,
     "skuDocumentRows": 1,
@@ -364,16 +364,16 @@
   },
   "sqlFiles": {
     "leinz-schema.sql": {
-      "bytes": 27042,
-      "sha256": "5d20ac3db1fb93c5f94bb12a11ab50f06ee1b753664f902b2497d5f708dc8981"
+      "bytes": 27140,
+      "sha256": "3d340b43c296f05015b2bdbfa1b5dd2c0cc635d97331f23f8c8f923beb5cfc79"
     },
     "leinz-master-data.sql": {
-      "bytes": 11299457,
-      "sha256": "3a982625eb07695da97decc0128309da8421d4e4e107c6035b562e32a5ed754f"
+      "bytes": 11299473,
+      "sha256": "071bd1893975557b935b7d7abe0feb2c9a7efb6334c9ac04d85bfa21d8499d60"
     },
     "leinz-schema-and-master-data.sql": {
-      "bytes": 11326018,
-      "sha256": "07d426ac71b2d4a50655224ff7c0d3468ca4f38cfd9aaf58f7767548c74f06dd"
+      "bytes": 11326116,
+      "sha256": "6ed5f7f94d7aa5b384093b9e356f7caaf0c25a4d6fe6860ca8ebeb1d6a4e3134"
     }
   }
 }

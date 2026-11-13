@@ -16,7 +16,7 @@
     "db:seed": "node server/cli.mjs seed",
     "admin:create": "node server/cli.mjs admin-create",
     "doctor": "node server/cli.mjs doctor",
-    "test": "node server/check.mjs && node tools/test-blank-engine.mjs && node tools/test-sku-manager.mjs && node tools/test-viewer.mjs && node --test server/test-core.mjs tools/test-storage-client.mjs tools/test-consultation-utils.mjs tools/test-catalog-model.mjs tools/test-optics.mjs tools/test-master-manager.mjs tools/test-photochromic.mjs tools/test-tabular-import.mjs tools/test-blank-batch.mjs tools/test-import-regressions.mjs tools/test-relational.mjs tools/test-sku-diameter-ranges.mjs tools/test-master-deletion.mjs tools/test-workbook-sync.mjs",
+    "test": "node server/check.mjs && node tools/test-blank-engine.mjs && node tools/test-sku-manager.mjs && node tools/test-viewer.mjs && node --test tools/test-admin-access.mjs server/test-core.mjs tools/test-storage-client.mjs tools/test-consultation-utils.mjs tools/test-catalog-model.mjs tools/test-optics.mjs tools/test-master-manager.mjs tools/test-photochromic.mjs tools/test-tabular-import.mjs tools/test-blank-batch.mjs tools/test-import-regressions.mjs tools/test-relational.mjs tools/test-sku-diameter-ranges.mjs tools/test-master-deletion.mjs tools/test-workbook-sync.mjs",
     "db:sync-materials": "node tools/sync-material-workbook.mjs",
     "test:mysql": "node tools/test-server.mjs",
     "test:relational": "node --test tools/test-relational.mjs",

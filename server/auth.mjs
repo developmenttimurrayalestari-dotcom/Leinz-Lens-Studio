@@ -6,6 +6,10 @@ export const COOKIE_NAME = 'leinz_session';
 export const tokenHash = value => createHash('sha256').update(value).digest();
 export const newToken = () => randomBytes(32).toString('base64url');
 export const newCsrf = () => randomBytes(32).toString('hex');
+export function validateRole(value) {
+  if (!['administrator', 'user'].includes(value)) throw Error('Level akun harus administrator atau user.');
+  return value;
+}
 
 export function username(value) {
   if (typeof value !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9._-]{2,63}$/.test(value.trim())) throw Error('Username harus 3–64 karakter: huruf, angka, titik, underscore, atau tanda minus.');

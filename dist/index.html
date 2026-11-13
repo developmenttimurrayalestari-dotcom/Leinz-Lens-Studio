@@ -17,6 +17,7 @@
   <link rel="stylesheet" href="photochromic.css">
   <link rel="stylesheet" href="import.css">
   <link rel="stylesheet" href="blank-batch.css">
+  <link rel="stylesheet" href="admin.css">
   <script defer src="runtime-config.js"></script>
   <script defer src="catalog-model.js"></script>
   <script defer src="storage-client.js"></script>
@@ -30,13 +31,14 @@
   <script defer src="tabular-import.js"></script>
   <script defer src="sku-manager.js"></script>
   <script defer src="master-manager.js"></script>
+  <script defer src="admin-manager.js"></script>
   <script defer src="app.js"></script>
 </head>
 <body>
   <a class="skip-link" href="#main">Lewati ke simulator</a>
   <header class="site-header">
     <a class="brand" href="#" aria-label="Leinz Lens Studio"><span class="brand-mark" aria-hidden="true">L</span><span class="brand-name">Leinz <small>LENS STUDIO</small></span></a>
-    <nav aria-label="Navigasi utama" class="nav"><button class="nav-button active" data-tab="studio" aria-current="page">Studio lensa</button><button class="nav-button" data-tab="manage">Manage</button></nav>
+    <nav aria-label="Navigasi utama" class="nav"><button class="nav-button active" data-tab="studio" aria-current="page">Studio lensa</button><button class="nav-button" data-tab="manage" hidden>Manage</button></nav>
     <button class="button ghost saved-button" id="open-saved"><span class="icon" data-icon="bookmark"></span><span>Tersimpan</span><span id="saved-count" class="small-count">0</span></button>
   </header>
   <main id="main">
@@ -158,8 +160,8 @@
       <section class="page-view" id="view-manage" hidden>
         <div class="page-heading manage-heading"><div><p class="eyebrow"><span></span> MASTER DATA · TIMUR RAYA LESTARI</p><h1>Manage</h1><p class="lead">Kelola bahan baku, bentuk frame, tinting, dan SKU dalam satu tempat.</p></div><button id="refresh-masters" class="button secondary">Muat master terbaru</button></div>
         <div class="manage-overview" aria-label="Ringkasan master data"><div><strong id="manage-count-materials">—</strong><span>produk / blank</span></div><div><strong id="manage-count-shapes">—</strong><span>frame shape</span></div><div><strong id="manage-count-tints">—</strong><span>kode tinting</span></div><div><strong id="manage-count-skus">—</strong><span>SKU produk</span></div><p id="manage-storage-label"></p></div>
-        <div class="manage-tabs" role="tablist" aria-label="Kelompok master"><button id="manage-tab-materials" role="tab" aria-selected="true" aria-controls="manage-content" data-manage-tab="materials">Blank / Raw Material</button><button id="manage-tab-shapes" role="tab" aria-selected="false" aria-controls="manage-content" data-manage-tab="shapes">Frame Shape</button><button id="manage-tab-tints" role="tab" aria-selected="false" aria-controls="manage-content" data-manage-tab="tints">Manage Tinting</button><button id="manage-tab-skus" role="tab" aria-selected="false" aria-controls="manage-content" data-manage-tab="skus">Master SKU</button></div>
-        <div id="manage-content" role="tabpanel" aria-labelledby="manage-tab-materials"><div id="master-manager-root"></div><div id="manage-legacy-panels"></div></div>
+        <div class="manage-tabs" role="tablist" aria-label="Kelompok master"><button id="manage-tab-materials" role="tab" aria-selected="true" aria-controls="manage-content" data-manage-tab="materials">Blank / Raw Material</button><button id="manage-tab-shapes" role="tab" aria-selected="false" aria-controls="manage-content" data-manage-tab="shapes">Frame Shape</button><button id="manage-tab-tints" role="tab" aria-selected="false" aria-controls="manage-content" data-manage-tab="tints">Manage Tinting</button><button id="manage-tab-skus" role="tab" aria-selected="false" aria-controls="manage-content" data-manage-tab="skus">Master SKU</button><button id="manage-tab-indices" role="tab" aria-selected="false" aria-controls="manage-content" data-manage-tab="indices">Indeks Bahan</button><button id="manage-tab-users" role="tab" aria-selected="false" aria-controls="manage-content" data-manage-tab="users">Manage User</button></div>
+        <div id="manage-content" role="tabpanel" aria-labelledby="manage-tab-materials"><div id="master-manager-root"></div><div id="admin-manager-root" hidden></div><div id="manage-legacy-panels"></div></div>
       </section>
       <section class="page-view" id="view-materials" hidden>
         <div class="page-heading"><div><p class="eyebrow"><span></span> FRAME → SKU → BLANK</p><h1>Ukuran tepat, bahan yang sesuai.</h1><p class="lead">Periksa kebutuhan diameter per mata dan telusuri alasan setiap kandidat.</p></div><button class="button secondary" data-tab="studio">Kembali ke studio</button></div>

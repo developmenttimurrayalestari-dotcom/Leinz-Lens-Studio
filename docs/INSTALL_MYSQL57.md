@@ -1,8 +1,14 @@
 # Instalasi Leinz Lens Studio 2.1.0 — MySQL 5.7.24
 
-Untuk kode terbaru dengan skema relasional 4, ikuti juga
+Untuk kode terbaru dengan skema 5 (level akun), ikuti juga
 [panduan normalisasi dan migrasi](NORMALISASI_DATABASE.md). Database existing
 memerlukan `npm run db:migrate` dengan seluruh penulis aplikasi dihentikan.
+
+Migrasi 005 menambahkan level `administrator` dan `user`. Akun lama tetap
+administrator. Setelah migrasi dan restart server, gunakan **Manage → Manage
+User** untuk membuat akun, mengganti password, mengatur level, atau menonaktifkan
+akun. Akun user hanya dapat membuka Studio Lensa dan tidak dapat menulis master
+melalui API. Buat administrator pertama menggunakan `npm run admin:create`.
 
 Panduan ini awalnya untuk paket **Leinz-Lens-Studio-2.1.0-MySQL57.zip**. Folder utama di dalam ZIP adalah `leinz-lens-studio`. Jalankan perintah aplikasi dari folder yang memuat `package.json`, `server/`, `dist/`, dan `database/`.
 
